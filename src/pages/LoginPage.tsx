@@ -117,7 +117,7 @@ export function LoginPage() {
       </section>
 
       <section className="flex min-h-screen items-center justify-center px-5 py-8 sm:px-8 lg:px-16">
-        <div className="w-full max-w-[440px]">
+        <div className="w-full max-w-110">
           <div className="mb-10 lg:hidden">
             <BrandMark />
           </div>

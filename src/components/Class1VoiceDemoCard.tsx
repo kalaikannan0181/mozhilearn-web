@@ -237,7 +237,7 @@ export function Class1VoiceDemoCard() {
               <div className="flex items-center gap-2"><BookOpen size={16} className="text-forest-700" /><h3 className="text-sm font-semibold text-slate-900">Demo Phrases</h3></div>
               {contentError && <p role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{contentError}</p>}
               {!content && !contentError && <p className="mt-3 text-sm text-slate-500">Loading verified Lesson 1 content…</p>}
-              <div className="mt-3 max-h-[28rem] space-y-2 overflow-y-auto pr-1">
+              <div className="mt-3 max-h-112 space-y-2 overflow-y-auto pr-1">
                 {demoGroups.map((group) => (
                   <details key={group.label} open={mode === "demo"} className="rounded-lg border border-slate-200 bg-slate-50">
                     <summary className="cursor-pointer px-3 py-2 text-sm font-semibold text-slate-700">{group.label} <span className="ml-1 text-xs font-normal text-slate-500">({group.items.length})</span></summary>

@@ -7,6 +7,7 @@
   },
   "type": "module",
   "scripts": {
+    "start": "node server/index.cjs",
     "dev": "concurrently -k -n api,web \"node server/index.cjs\" \"vite\"",
     "dev:all": "npm run dev",
     "server:dev": "node --watch server/index.cjs",

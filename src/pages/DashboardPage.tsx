@@ -296,7 +296,7 @@ export function DashboardPage() {
 
       <div className="lg:pl-64">
         <header className="sticky top-0 z-20 border-b border-slate-200/90 bg-white/90 backdrop-blur">
-          <div className="flex h-[72px] items-center justify-between px-5 sm:px-8 lg:px-10">
+          <div className="flex h-18 items-center justify-between px-5 sm:px-8 lg:px-10">
             <div className="flex items-center gap-3">
               <button
                 aria-label="Open navigation"
@@ -323,7 +323,7 @@ export function DashboardPage() {
           </div>
         </header>
 
-        <main className="mx-auto max-w-[1400px] px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
+        <main className="mx-auto max-w-350 px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
           <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
             <div>
               <p className="text-sm font-semibold text-forest-700">Namaste, {firstName}</p>
@@ -521,7 +521,7 @@ export function DashboardPage() {
 
             {loadState === "ready" && lessons.length > 0 && (
               <div className="divide-y divide-slate-100">
-                <div className="hidden grid-cols-[minmax(220px,2fr)_110px_minmax(150px,1fr)_130px_130px_24px] gap-4 bg-slate-50/70 px-6 py-3 text-[10px] font-bold tracking-[0.1em] text-slate-400 uppercase md:grid">
+                <div className="hidden grid-cols-[minmax(220px,2fr)_110px_minmax(150px,1fr)_130px_130px_24px] gap-4 bg-slate-50/70 px-6 py-3 text-[10px] font-bold tracking-widest text-slate-400 uppercase md:grid">
                   <span>Lesson</span>
                   <span>Grade</span>
                   <span>Topic</span>
