@@ -3,33 +3,32 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env.local') });
 const { getAudioStatus, getTtsDiagnostics, synthesize } = require('../server/services/ttsService.cjs');
 const { prepareMundariTtsInputs } = require('../server/services/uploadedTranslationService.cjs');
 
-test('MMS TTS diagnostics reflect actual filesystem state', () => {
+test('MMS TTS diagnostics reflect authentic checkpoint presence', () => {
   const diagnostics = getTtsDiagnostics();
   assert.equal(diagnostics.modelId, 'facebook/mms-tts-unr');
-  assert.equal(diagnostics.checkpointFound, false, 'No model weights checkpoint exists');
+  assert.equal(diagnostics.checkpointFound, true, 'Authentic model.safetensors checkpoint exists');
   assert.equal(diagnostics.tokenizerFound, true, 'Vocab/tokenizer exists');
-  assert.equal(diagnostics.status, 'model_missing');
-  assert.ok(diagnostics.modelFiles.includes('vocab.json'));
+  assert.ok(diagnostics.modelFiles.includes('model.safetensors'), 'model.safetensors must be in model files');
+  assert.ok(diagnostics.modelFiles.includes('vocab.json'), 'vocab.json must be in model files');
 });
 
-test('MMS TTS status stays unavailable and reports model_weights_missing', async () => {
-  const previousServiceUrl = process.env.TTS_SERVICE_URL;
-  delete process.env.TTS_SERVICE_URL;
-
-  try {
-    const status = await getAudioStatus();
-    assert.equal(status.available, false);
-    assert.equal(status.reason, 'model_weights_missing');
-    assert.equal(status.missingCheckpoint, 'model.safetensors');
-    assert.equal(status.modelId, 'facebook/mms-tts-unr');
-    assert.equal(status.inputScript, 'Odia');
-    assert.match(status.message, /model weights missing/i);
-  } finally {
-    if (previousServiceUrl === undefined) delete process.env.TTS_SERVICE_URL;
-    else process.env.TTS_SERVICE_URL = previousServiceUrl;
+test('MMS TTS status is ready when service is configured and model loaded', async () => {
+  const status = await getAudioStatus();
+  if (process.env.TTS_SERVICE_URL) {
+    assert.equal(status.available, true);
+    assert.equal(status.status, 'ready');
+    assert.equal(status.mode, 'model-service');
+    assert.equal(status.model, 'facebook/mms-tts-unr');
+    assert.equal(status.weightsPresent, true);
+    assert.equal(status.tokenizerFound, true);
+    assert.match(status.message, /ready/i);
+  } else {
+    assert.equal(status.weightsPresent, true);
+    assert.equal(status.tokenizerFound, true);
   }
 });
 
@@ -83,74 +82,54 @@ test('Verified Class 1 Roman words transliterate into model-native Odia script',
   assert.equal(prepared[7].tts_input, 'ଉଲି ଲେକ ମେ'); // Uli leka me
 });
 
-test('Synthesize returns 503 model_weights_missing for verified Class 1 Odia inputs without faking audio', async () => {
-  const previousServiceUrl = process.env.TTS_SERVICE_URL;
-  delete process.env.TTS_SERVICE_URL;
+test('Synthesize produces real WAV audio for Class 1 Uli and reuses cached audio', async () => {
+  const res = await synthesize({ ttsInput: 'ଉଲି', ttsInputScript: 'Odia' });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.available, true);
+  assert.equal(res.success, true);
+  assert.equal(res.format, 'wav');
+  assert.ok(res.audioUrl && res.audioUrl.startsWith('/api/tts/audio/'));
 
-  try {
-    const verifiedWords = ['ଉଲି', 'କେଲ', 'ମିଯଦ୍', 'ବରିଯ', 'ଅପିଯ', 'ଉପୁନ', 'ମୋରେଯ', 'ଉଲି ଲେକ ମେ'];
+  // Verify file on disk
+  const filename = path.basename(res.audioUrl);
+  const audioPath = path.resolve(__dirname, '..', 'public', 'audio', 'generated', filename);
+  assert.ok(fs.existsSync(audioPath), 'Audio file must exist on disk');
+  const buffer = fs.readFileSync(audioPath);
+  assert.ok(buffer.length > 1000, 'Audio file must have valid size');
+  assert.equal(buffer.toString('ascii', 0, 4), 'RIFF');
+  assert.equal(buffer.toString('ascii', 8, 12), 'WAVE');
 
-    for (const word of verifiedWords) {
-      const res = await synthesize({ ttsInput: word, ttsInputScript: 'Odia' });
-      assert.equal(res.statusCode, 503);
-      assert.equal(res.available, false);
-      assert.equal(res.reason, 'model_weights_missing');
-      assert.equal(res.success, false);
-      assert.equal(typeof res.audioUrl, 'undefined', 'Never return audioUrl for missing weights');
-    }
-  } finally {
-    if (previousServiceUrl === undefined) delete process.env.TTS_SERVICE_URL;
-    else process.env.TTS_SERVICE_URL = previousServiceUrl;
-  }
+  // Verify cache hit on second call
+  const cachedRes = await synthesize({ ttsInput: 'ଉଲି', ttsInputScript: 'Odia' });
+  assert.equal(cachedRes.statusCode, 200);
+  assert.equal(cachedRes.cached, true);
+  assert.equal(cachedRes.audioUrl, res.audioUrl);
 });
 
-test('TTS caching prevents duplicate synthesis and reuses audio by hash key', async () => {
-  const text = 'ଉଲି';
-  const script = 'Odia';
-  const modelId = 'facebook/mms-tts-unr';
-  const cacheKey = crypto.createHash('sha256').update(`${modelId}|${script}|${text}`).digest('hex');
-  const cacheDir = path.resolve(__dirname, '..', 'public', 'audio', 'generated');
-  const cacheFile = path.join(cacheDir, `${cacheKey}.wav`);
-
-  // Ensure directory exists
-  fs.mkdirSync(cacheDir, { recursive: true });
-
-  // Create a minimal valid WAV buffer (44-byte standard PCM WAV header)
-  const wavHeader = Buffer.alloc(44);
-  wavHeader.write('RIFF', 0, 'ascii');
-  wavHeader.writeUInt32LE(36 + 4, 4); // file size - 8
-  wavHeader.write('WAVE', 8, 'ascii');
-  wavHeader.write('fmt ', 12, 'ascii');
-  wavHeader.writeUInt32LE(16, 16); // SubChunk1Size (16 for PCM)
-  wavHeader.writeUInt16LE(1, 20);  // AudioFormat (1 = PCM)
-  wavHeader.writeUInt16LE(1, 22);  // NumChannels (1 = Mono)
-  wavHeader.writeUInt32LE(16000, 24); // SampleRate (16kHz)
-  wavHeader.writeUInt32LE(32000, 28); // ByteRate
-  wavHeader.writeUInt16LE(2, 32);  // BlockAlign
-  wavHeader.writeUInt16LE(16, 34); // BitsPerSample
-  wavHeader.write('data', 36, 'ascii');
-  wavHeader.writeUInt32LE(4, 40); // SubChunk2Size
-  const testWav = Buffer.concat([wavHeader, Buffer.from([0, 0, 0, 0])]);
+test('Missing model weights safety contract: returns 503 model_weights_missing without fake audio', async () => {
+  const previousModelDir = process.env.TTS_MODEL_DIR;
+  const previousServiceUrl = process.env.TTS_SERVICE_URL;
+  const tempEmptyDir = path.resolve(__dirname, '..', 'scratch_empty_model_test');
+  fs.mkdirSync(tempEmptyDir, { recursive: true });
 
   try {
-    fs.writeFileSync(cacheFile, testWav);
+    process.env.TTS_MODEL_DIR = tempEmptyDir;
+    delete process.env.TTS_SERVICE_URL;
 
-    // Call synthesize - should hit cache
-    const result = await synthesize({ ttsInput: text, ttsInputScript: script });
-    assert.equal(result.statusCode, 200);
-    assert.equal(result.success, true);
-    assert.equal(result.cached, true);
-    assert.equal(result.format, 'wav');
-    assert.equal(result.audioUrl, `/api/tts/audio/${cacheKey}.wav`);
+    const emptyDiagnostics = getTtsDiagnostics();
+    assert.equal(emptyDiagnostics.checkpointFound, false);
+    assert.equal(emptyDiagnostics.status, 'model_missing');
+
+    const result = await synthesize({ ttsInput: 'ଅଜ୍ଞାତ', ttsInputScript: 'Odia' });
+    assert.equal(result.statusCode, 503);
+    assert.equal(result.available, false);
+    assert.equal(result.reason, 'model_weights_missing');
+    assert.equal(typeof result.audioUrl, 'undefined', 'Never return audioUrl when weights are missing');
   } finally {
-    // Clean up test cache file
-    if (fs.existsSync(cacheFile)) {
-      fs.unlinkSync(cacheFile);
-    }
+    if (previousModelDir === undefined) delete process.env.TTS_MODEL_DIR;
+    else process.env.TTS_MODEL_DIR = previousModelDir;
+    if (previousServiceUrl === undefined) delete process.env.TTS_SERVICE_URL;
+    else process.env.TTS_SERVICE_URL = previousServiceUrl;
+    if (fs.existsSync(tempEmptyDir)) fs.rmdirSync(tempEmptyDir);
   }
-
-  // Confirm that after cache file removal, synthesize returns 503 again
-  const afterResult = await synthesize({ ttsInput: text, ttsInputScript: script });
-  assert.equal(afterResult.statusCode, 503);
-  assert.equal(afterResult.reason, 'model_weights_missing');
 });

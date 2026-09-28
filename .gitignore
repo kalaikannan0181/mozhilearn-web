@@ -25,6 +25,8 @@ logs/
 .claude-replay.*
 .tmp-*
 /.figma/design-context/
+public/audio/generated/*.wav
+!public/audio/generated/.gitkeep
 
 # Python
 .venv/

@@ -170,8 +170,9 @@ class TtsHandler(BaseHTTPRequestHandler):
             with inference_lock, torch.no_grad():
                 waveform = model(**inputs).waveform
             values = waveform.detach().cpu().numpy()
+            scaled = (values[0] * 32767).clip(-32768, 32767).astype("int16")
             audio_buffer = io.BytesIO()
-            wav.write(audio_buffer, int(model.config.sampling_rate), values[0].astype("float32"))
+            wav.write(audio_buffer, int(model.config.sampling_rate), scaled)
             json_response(self, 200, {"success": True, "status": "success", "mode": "model", "available": True, "audio_base64": base64.b64encode(audio_buffer.getvalue()).decode("ascii"), "format": "wav", "modelId": "facebook/mms-tts-unr"})
         except Exception:
             json_response(self, 500, {"success": False, "available": False, "status": "synthesis_failed", "reason": "synthesis_failed", "message": "Mundari TTS synthesis failed."})

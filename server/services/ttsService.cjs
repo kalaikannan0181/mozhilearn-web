@@ -8,9 +8,14 @@ const MODEL_ROOT = path.resolve(process.env.TTS_MODEL_DIR || path.join(__dirname
 const DEFAULT_MODEL_ID = 'facebook/mms-tts-unr';
 const REQUIRED_PYTHON_PACKAGES = ['torch', 'transformers', 'scipy', 'numpy'];
 
+function getModelRoot() {
+  return path.resolve(process.env.TTS_MODEL_DIR || path.join(__dirname, '..', '..', 'tts-main', 'tts-main', 'TTS'));
+}
+
 function listModelFiles() {
-  if (!fs.existsSync(MODEL_ROOT)) return [];
-  return fs.readdirSync(MODEL_ROOT).sort();
+  const root = getModelRoot();
+  if (!fs.existsSync(root)) return [];
+  return fs.readdirSync(root).sort();
 }
 
 function hasModelWeights() {
