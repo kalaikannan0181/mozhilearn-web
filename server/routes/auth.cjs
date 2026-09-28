@@ -47,10 +47,10 @@ router.post('/api/auth/register', registrationLimit, async (request, response) =
   const trimmedName = typeof name === 'string' ? name.trim() : '';
   const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
 
-  if (!trimmedName || trimmedName.length > 200 || !normalizedEmail || normalizedEmail.length > 320 || !normalizedEmail.includes('@') || typeof password !== 'string' || password.length < 12 || password.length > 128) {
+  if (!trimmedName || trimmedName.length > 200 || !normalizedEmail || normalizedEmail.length > 320 || !normalizedEmail.includes('@') || typeof password !== 'string' || password.length < 8 || password.length > 128) {
     return response.status(400).json({
       success: false,
-      message: 'Name, valid email, and a password between 12 and 128 characters are required',
+      message: 'Name, valid email, and a password between 8 and 128 characters are required',
     });
   }
 

@@ -27,6 +27,7 @@ interface AuthContextValue {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (details: SignUpDetails) => Promise<{ needsConfirmation: boolean }>;
   signOut: () => Promise<void>;
+  signInDemo: (role?: "teacher" | "reviewer" | "admin") => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -47,6 +48,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    try {
+      const saved = localStorage.getItem("mozhi_demo_user");
+      if (saved) {
+        const demoUser = JSON.parse(saved) as AppUser;
+        if (demoUser?.id && demoUser?.role) {
+          setSession({ user: demoUser });
+          setLoading(false);
+          return;
+        }
+      }
+    } catch {
+      localStorage.removeItem("mozhi_demo_user");
+    }
+
     requestAuth("/api/auth/me")
       .then((payload) => {
         if (payload.user) {
@@ -58,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
+    localStorage.removeItem("mozhi_demo_user");
     const payload = await requestAuth("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -67,6 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signUp = useCallback(async ({ name, email, password }: SignUpDetails) => {
+    localStorage.removeItem("mozhi_demo_user");
     const payload = await requestAuth("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -77,8 +94,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { needsConfirmation: false };
   }, []);
 
+  const signInDemo = useCallback((role: "teacher" | "reviewer" | "admin" = "teacher") => {
+    const demoUser: AppUser = {
+      id: 999,
+      email: `${role}@mozhilearn.demo`,
+      user_metadata: { full_name: `Demo ${role.charAt(0).toUpperCase() + role.slice(1)}` },
+      role,
+    };
+    try {
+      localStorage.setItem("mozhi_demo_user", JSON.stringify(demoUser));
+    } catch {
+      // ignore localStorage quota error
+    }
+    setSession({ user: demoUser });
+  }, []);
+
   const signOut = useCallback(async () => {
-    await requestAuth("/api/auth/logout", { method: "POST" });
+    localStorage.removeItem("mozhi_demo_user");
+    try {
+      await requestAuth("/api/auth/logout", { method: "POST" });
+    } catch {
+      // Ignore network errors when signing out
+    }
     setSession(null);
   }, []);
 
@@ -90,8 +127,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signIn,
       signUp,
       signOut,
+      signInDemo,
     }),
-    [loading, session, signIn, signOut, signUp],
+    [loading, session, signIn, signOut, signUp, signInDemo],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,8 +1,9 @@
-import { AlertCircle, ArrowRight, CheckCircle2, Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { AlertCircle, ArrowRight, CheckCircle2, Eye, EyeOff, ShieldCheck, Sparkles } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router";
 import { BrandMark } from "../components/BrandMark";
 import { useAuth } from "../features/auth/AuthProvider";
+import { getApiBaseUrl } from "../lib/apiClient";
 
 type Mode = "login" | "signup";
 
@@ -15,12 +16,15 @@ export function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const { user, loading, signIn, signUp } = useAuth();
+  const { user, loading, signIn, signUp, signInDemo } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   const destination =
     (location.state as { from?: string } | null)?.from ?? "/dashboard";
+
+  const isVercelHosted = typeof window !== "undefined" && window.location.hostname.includes("vercel.app");
+  const isApiConfigured = Boolean(getApiBaseUrl());
 
   useEffect(() => {
     setError("");
@@ -63,6 +67,18 @@ export function LoginPage() {
       setSubmitting(false);
     }
   }
+
+  function handleDemoLogin() {
+    signInDemo("teacher");
+    navigate(destination, { replace: true });
+  }
+
+  const isConnectionError =
+    error.includes("Backend API") ||
+    error.includes("Unable to connect") ||
+    error.includes("VITE_API_URL") ||
+    error.includes("404") ||
+    error.includes("Failed to fetch");
 
   return (
     <main className="min-h-screen bg-[#f7f8f5] lg:grid lg:grid-cols-[minmax(380px,0.9fr)_minmax(520px,1.1fr)]">
@@ -128,13 +144,25 @@ export function LoginPage() {
             </p>
           </div>
 
+          {isVercelHosted && !isApiConfigured && (
+            <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50/90 p-4 text-xs leading-5 text-amber-900 shadow-sm">
+              <div className="flex items-center gap-2 font-semibold text-amber-950">
+                <span className="size-2 rounded-full bg-amber-500" />
+                Vercel Hosting Preview
+              </div>
+              <p className="mt-1 text-amber-800">
+                To link your live PostgreSQL backend, set <code className="rounded bg-amber-100 px-1 py-0.5 font-mono text-[11px]">VITE_API_URL</code> in Vercel settings. You can click <strong>Explore in Demo Mode</strong> below to test the full UI right now.
+              </p>
+            </div>
+          )}
+
           <div className="mb-7 grid grid-cols-2 rounded-xl bg-slate-200/65 p-1">
             {(["login", "signup"] as const).map((item) => (
               <button
                 key={item}
                 type="button"
                 onClick={() => setMode(item)}
-                className={`rounded-lg px-4 py-2.5 text-sm font-semibold ${
+                className={`rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
                   mode === item
                     ? "bg-white text-forest-800 shadow-sm"
                     : "text-slate-500 hover:text-slate-800"
@@ -146,9 +174,23 @@ export function LoginPage() {
           </div>
 
           {error && (
-            <div role="alert" className="mb-5 flex gap-3 rounded-xl border border-red-200 bg-red-50 p-3.5 text-sm leading-5 text-red-800">
-              <AlertCircle aria-hidden="true" className="mt-0.5 shrink-0" size={17} />
-              <span>{error}</span>
+            <div role="alert" className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm leading-5 text-red-800">
+              <div className="flex gap-3">
+                <AlertCircle aria-hidden="true" className="mt-0.5 shrink-0" size={17} />
+                <div className="space-y-2">
+                  <p>{error}</p>
+                  {isConnectionError && (
+                    <button
+                      type="button"
+                      onClick={handleDemoLogin}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-red-100 px-3 py-1.5 text-xs font-semibold text-red-900 transition hover:bg-red-200"
+                    >
+                      <Sparkles size={13} />
+                      Enter in Demo Mode to explore
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
@@ -192,12 +234,12 @@ export function LoginPage() {
               <div className="relative">
                 <input
                   required
-                  minLength={6}
+                  minLength={8}
                   type={showPassword ? "text" : "password"}
                   autoComplete={mode === "login" ? "current-password" : "new-password"}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  placeholder={mode === "signup" ? "At least 6 characters" : "Enter your password"}
+                  placeholder={mode === "signup" ? "At least 8 characters" : "Enter your password"}
                   className="h-12 w-full rounded-xl border border-slate-300 bg-white pr-12 pl-4 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-forest-600 focus:ring-3 focus:ring-forest-100 focus:outline-none"
                 />
                 <button
@@ -230,6 +272,24 @@ export function LoginPage() {
             </button>
           </form>
 
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-200" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-[#f7f8f5] px-3 font-medium text-slate-400">or explore without account</span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleDemoLogin}
+            className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-forest-300 bg-white px-4 text-sm font-semibold text-forest-800 shadow-xs transition hover:bg-forest-50/70"
+          >
+            <Sparkles size={16} className="text-forest-600" />
+            Explore Teacher Portal (Demo Mode)
+          </button>
+
           <div className="mt-8 flex items-start gap-2.5 border-t border-slate-200 pt-6 text-xs leading-5 text-slate-500">
             <ShieldCheck aria-hidden="true" className="mt-0.5 shrink-0 text-forest-600" size={16} />
             <p>Your account gives you private access to lessons created by you.</p>
@@ -239,3 +299,4 @@ export function LoginPage() {
     </main>
   );
 }
+
