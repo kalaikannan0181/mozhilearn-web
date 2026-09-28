@@ -8,7 +8,7 @@ const router = express.Router();
 const statuses = new Set(['draft', 'published', 'archived']);
 const idOf = (value) => (Number.isInteger(Number(value)) && Number(value) > 0 ? Number(value) : null);
 
-router.get('/api/packs', async (_req, res) => {
+router.get(['/api/packs', '/api/offline-packs'], async (_req, res) => {
   try {
     const result = await query('SELECT id, name, language, grade, version, status, created_at, updated_at FROM offline_packs ORDER BY created_at DESC, id DESC');
     return res.status(200).json({ success: true, data: result.rows });
@@ -18,7 +18,7 @@ router.get('/api/packs', async (_req, res) => {
   }
 });
 
-router.get('/api/packs/:id', async (req, res) => {
+router.get(['/api/packs/:id', '/api/offline-packs/:id'], async (req, res) => {
   const packId = idOf(req.params.id);
   if (!packId) return res.status(400).json({ success: false, message: 'Pack ID must be a positive integer' });
   try {

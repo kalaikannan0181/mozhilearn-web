@@ -247,7 +247,10 @@ test('environment and project discovery checks', async () => {
 test('database health and integrity checks', async () => {
   const healthResponse = await fetch(`${apiBase}/api/health`);
   assert.equal(healthResponse.status, 200);
-  assert.deepEqual(await healthResponse.json(), { ok: true, service: 'mozilearn-api' });
+  const healthPayload = await healthResponse.json();
+  assert.equal(healthPayload.ok, true);
+  assert.equal(healthPayload.service, 'mozilearn-api');
+  assert.equal(typeof healthPayload.version, 'string');
 
   const health = await api('/api/test-db');
   assert.equal(health.status, 200);
@@ -451,10 +454,10 @@ test('bounded Class 1 verified translation lookup and near-miss rejection', asyn
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ hindi_text: 'आमों' }),
   });
-  assert.equal(nearMiss.status, 200);
+  assert.equal(nearMiss.status, 422);
   const nearMissPayload = await nearMiss.json();
   assert.equal(nearMissPayload.success, false);
-  assert.equal(nearMissPayload.reason, 'verified_class1_translation_not_found');
+  assert.equal(nearMissPayload.code, 'verified_translation_not_found');
 });
 
 test('normalization and script safety', async () => {
@@ -499,9 +502,9 @@ test('Hindi ASR endpoint and ASR → lookup behavior', async () => {
     body: JSON.stringify({ hindi_text: transcriptionPayload.transcription.hindi_text }),
   });
   const lookupPayload = await lookupResponse.json();
-  assert.equal(lookupResponse.status, 200);
+  assert.equal(lookupResponse.status, 422);
   assert.equal(lookupPayload.success, false);
-  assert.equal(lookupPayload.reason, 'verified_class1_translation_not_found');
+  assert.equal(lookupPayload.code, 'verified_translation_not_found');
 });
 
 test('TTS status and safety contract', async () => {

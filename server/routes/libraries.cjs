@@ -127,4 +127,47 @@ router.get('/api/number-vocabulary', async (_req, res) => {
   }
 });
 
+router.get('/api/number-vocabulary/:id', async (req, res) => {
+  const id = idOf(req.params.id);
+  if (!id) return res.status(400).json({ success: false, message: 'ID must be a positive integer' });
+  try {
+    const result = await query('SELECT id, number_value, hindi, mundari_roman, created_at FROM number_vocabulary WHERE id = $1', [id]);
+    if (!result.rows[0]) return res.status(404).json({ success: false, message: 'Number vocabulary item not found' });
+    return res.status(200).json({ success: true, item: result.rows[0] });
+  } catch (error) {
+    logError('GET /api/number-vocabulary/:id error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch number vocabulary item' });
+  }
+});
+
+router.post('/api/number-vocabulary', requireRole('reviewer', 'admin'), async (req, res) => {
+  const { number_value: numberValue, hindi, mundari_roman: mundariRoman } = req.body || {};
+  if (!Number.isInteger(numberValue) || numberValue < 1 || typeof hindi !== 'string' || !hindi.trim() || typeof mundariRoman !== 'string' || !isLatinScript(mundariRoman.trim())) {
+    return res.status(400).json({ success: false, message: 'number_value, Hindi, and Latin-script mundari_roman are required' });
+  }
+  try {
+    const result = await query('INSERT INTO number_vocabulary (number_value, hindi, mundari_roman) VALUES ($1, $2, $3) RETURNING id, number_value, hindi, mundari_roman, created_at', [numberValue, hindi.trim(), mundariRoman.trim()]);
+    return res.status(201).json({ success: true, item: result.rows[0] });
+  } catch (error) {
+    logError('POST /api/number-vocabulary error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to create number vocabulary item' });
+  }
+});
+
+router.put('/api/number-vocabulary/:id', requireRole('reviewer', 'admin'), async (req, res) => {
+  const id = idOf(req.params.id);
+  const { number_value: numberValue, hindi, mundari_roman: mundariRoman } = req.body || {};
+  if (!id || !Number.isInteger(numberValue) || numberValue < 1 || typeof hindi !== 'string' || !hindi.trim() || typeof mundariRoman !== 'string' || !isLatinScript(mundariRoman.trim())) {
+    return res.status(400).json({ success: false, message: 'Valid number vocabulary fields are required' });
+  }
+  try {
+    const result = await query('UPDATE number_vocabulary SET number_value = $1, hindi = $2, mundari_roman = $3 WHERE id = $4 RETURNING id, number_value, hindi, mundari_roman, created_at', [numberValue, hindi.trim(), mundariRoman.trim(), id]);
+    if (!result.rows[0]) return res.status(404).json({ success: false, message: 'Number vocabulary item not found' });
+    return res.status(200).json({ success: true, item: result.rows[0] });
+  } catch (error) {
+    logError('PUT /api/number-vocabulary/:id error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update number vocabulary item' });
+  }
+});
+
 module.exports = router;

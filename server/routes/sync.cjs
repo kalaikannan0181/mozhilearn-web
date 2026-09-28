@@ -181,7 +181,46 @@ router.get('/api/sync', async (req, res) => {
   }
 });
 
-router.get('/api/sync/packs/:id', async (req, res) => {
+router.get('/api/sync/changes', async (req, res) => {
+  const since = req.query.since === undefined ? null : new Date(String(req.query.since));
+  if (req.query.since !== undefined && Number.isNaN(since.getTime())) {
+    return res.status(400).json({ success: false, message: 'since must be a valid ISO timestamp' });
+  }
+
+  try {
+    const cutoff = since ? since.toISOString() : new Date(0).toISOString();
+    const [lessons, translations, vocabulary, phrases, numbers] = await Promise.all([
+      query('SELECT id, version, updated_at FROM lessons WHERE updated_at > $1 ORDER BY updated_at, id', [cutoff]),
+      query('SELECT id, updated_at, status FROM translations WHERE updated_at > $1 ORDER BY updated_at, id', [cutoff]),
+      query('SELECT id, created_at AS updated_at FROM vocabulary WHERE created_at > $1 ORDER BY created_at, id', [cutoff]),
+      query('SELECT id, created_at AS updated_at FROM classroom_phrases WHERE created_at > $1 ORDER BY created_at, id', [cutoff]),
+      query('SELECT id, created_at AS updated_at FROM number_vocabulary WHERE created_at > $1 ORDER BY created_at, id', [cutoff]),
+    ]);
+    return res.status(200).json({ success: true, since: cutoff, changes: { lessons: lessons.rows, translations: translations.rows, vocabulary: vocabulary.rows, classroom_phrases: phrases.rows, number_vocabulary: numbers.rows } });
+  } catch (error) {
+    logError('GET /api/sync/changes error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to load sync changes' });
+  }
+});
+
+router.get('/api/sync/pull', async (_req, res) => {
+  const pack = await findLatestPublishedPack();
+  if (!pack) return res.status(404).json({ success: false, message: 'No published Mundari offline pack is available' });
+  return res.status(200).json({ success: true, pack: await loadPackContent(pack) });
+});
+
+router.post('/api/sync/push', requireRole('teacher', 'reviewer', 'admin'), async (req, res) => {
+  const changes = req.body?.changes;
+  if (!Array.isArray(changes) || changes.length > 100) {
+    return res.status(400).json({ success: false, message: 'changes must be an array containing at most 100 items' });
+  }
+
+  const conflicts = changes.filter((change) => change && ['approved', 'published'].includes(change.status));
+  await audit({ userId: req.auth.id, action: 'sync_push', entityType: 'sync', metadata: { submitted: changes.length, conflicts: conflicts.length } });
+  return res.status(200).json({ success: true, applied: [], conflicts, message: conflicts.length ? 'Approved or published content requires server-side review.' : 'No changes were applied by this foundation endpoint.' });
+});
+
+router.get(['/api/sync/packs/:id', '/api/offline-packs/:id/content'], async (req, res) => {
   const packId = parsePositiveInteger(req.params.id);
 
   if (!packId) {
@@ -226,7 +265,7 @@ router.get('/api/sync/packs/:id', async (req, res) => {
   }
 });
 
-router.post('/api/sync/packs', requireRole('teacher', 'reviewer', 'admin'), async (req, res) => {
+router.post(['/api/sync/packs', '/api/offline-packs'], requireRole('teacher', 'reviewer', 'admin'), async (req, res) => {
   const {
     name,
     language,

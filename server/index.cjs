@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const packageMetadata = require('../package.json');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env.local') });
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
@@ -57,7 +58,7 @@ app.use(attachAuth);
 app.use(csrfProtection(allowedOrigins));
 
 app.get('/api/health', (req, res) => {
-  res.status(200).json({ ok: true, service: 'mozilearn-api' });
+  res.status(200).json({ ok: true, service: 'mozilearn-api', version: packageMetadata.version });
 });
 
 app.use(authRoutes);

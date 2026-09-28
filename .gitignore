@@ -8,6 +8,12 @@ build/
 *.key
 *.p12
 *.pfx
+**/TTS/*.safetensors
+**/TTS/*.bin
+**/TTS/*.pt
+**/TTS/*.pth
+**/TTS/*.ckpt
+**/TTS/*.onnx
 secrets/
 credentials/
 .vite/

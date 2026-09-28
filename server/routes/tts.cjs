@@ -66,14 +66,13 @@ router.post('/speak', speakLimit, async (req, res) => {
   let ttsInput = typeof ttsInputRaw === 'string' ? ttsInputRaw.trim() : '';
   let ttsInputScript = typeof ttsInputScriptRaw === 'string' ? ttsInputScriptRaw.trim() : '';
 
-  // If Roman text was passed directly as tts_input without specifying Odia script or mundari_roman
-  if (ttsInput && !mundariRoman && (!ttsInputScript || ttsInputScript !== 'Odia')) {
+  if (!mundariRoman) {
     return res.status(400).json({
       success: false,
       status: 'invalid_input',
       mode: 'unavailable',
       language: 'mundari',
-      message: 'Odia model-compatible tts_input of at most 2000 characters is required.',
+      message: 'A verified Mundari Roman translation is required for TTS.',
     });
   }
 

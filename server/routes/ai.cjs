@@ -154,10 +154,11 @@ router.post('/class1-lookup', async (req, res) => {
         && typeof row.mundari_roman === 'string'
         && isLatinScript(row.mundari_roman.trim()));
     if (!match || !match.mundari_roman.trim()) {
-      return res.status(200).json({
+      return res.status(422).json({
         success: false,
         source: 'class1_verified',
-        reason: 'verified_class1_translation_not_found',
+        error: 'Verified translation not found',
+        code: 'verified_translation_not_found',
       });
     }
 
