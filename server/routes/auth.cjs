@@ -14,8 +14,9 @@ const { createRateLimiter } = require('../middleware/rateLimit.cjs');
 
 const router = express.Router();
 const SESSION_DAYS = 7;
-const registrationLimit = createRateLimiter({ windowMs: 60 * 60 * 1000, max: 5, message: 'Too many registration attempts. Try again later.' });
-const loginLimit = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 10, message: 'Too many login attempts. Try again later.' });
+const isProduction = process.env.NODE_ENV === 'production';
+const registrationLimit = createRateLimiter({ windowMs: 60 * 60 * 1000, max: isProduction ? 5 : 500, message: 'Too many registration attempts. Try again later.' });
+const loginLimit = createRateLimiter({ windowMs: 15 * 60 * 1000, max: isProduction ? 10 : 500, message: 'Too many login attempts. Try again later.' });
 
 function publicUser(row) {
   return {

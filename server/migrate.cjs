@@ -4,8 +4,47 @@ const crypto = require('crypto');
 const { pool } = require('./db.cjs');
 
 const migrationsDirectory = path.join(__dirname, 'migrations');
+const preservedTables = [
+  'lessons',
+  'lesson_activities',
+  'lesson_assessments',
+  'translations',
+  'vocabulary',
+  'classroom_phrases',
+  'textbook_terms',
+  'number_vocabulary',
+  'users',
+];
+
+async function snapshotExistingCounts() {
+  const counts = new Map();
+  for (const table of preservedTables) {
+    const exists = await pool.query(
+      'SELECT 1 FROM information_schema.tables WHERE table_schema = ANY(current_schemas(false)) AND table_name = $1 LIMIT 1',
+      [table],
+    );
+    if (!exists.rows[0]) continue;
+    const result = await pool.query(`SELECT COUNT(*)::bigint AS count FROM "${table}"`);
+    counts.set(table, result.rows[0].count);
+  }
+  return counts;
+}
+
+async function verifyPreservedCounts(before) {
+  const differences = [];
+  for (const [table, oldCount] of before) {
+    const result = await pool.query(`SELECT COUNT(*)::bigint AS count FROM "${table}"`);
+    if (result.rows[0].count !== oldCount) {
+      differences.push(`${table}: ${oldCount} -> ${result.rows[0].count}`);
+    }
+  }
+  if (differences.length) {
+    throw new Error(`Migration changed existing data row counts: ${differences.join(', ')}`);
+  }
+}
 
 async function runMigration() {
+  const existingCounts = await snapshotExistingCounts();
   const migrationFiles = fs
     .readdirSync(migrationsDirectory)
     .filter((fileName) => fileName.endsWith('.sql'))
@@ -48,6 +87,9 @@ async function runMigration() {
       client.release();
     }
   }
+
+  await verifyPreservedCounts(existingCounts);
+  console.log('Existing application table row counts preserved.');
 }
 
 runMigration()

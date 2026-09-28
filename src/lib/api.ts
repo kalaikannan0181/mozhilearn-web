@@ -1,4 +1,15 @@
-import type { CreateLessonInput, Lesson, LessonActivity, LessonAssessment, LessonDetail, Translation, TranslationStatus } from "../types/lesson";
+import type {
+  CreateLessonInput,
+  GeneratedFlashcards,
+  GeneratedWorksheet,
+  Lesson,
+  LessonActivity,
+  LessonAssessment,
+  LessonDetail,
+  MaterialStatus,
+  Translation,
+  TranslationStatus,
+} from "../types/lesson";
 import { apiFetch, readApiJson } from "./apiClient";
 
 type LessonsResponse = {
@@ -107,70 +118,6 @@ export async function transcribeHindiAudio(audio: Blob, filename: string): Promi
 const CLASS1_LESSON_TITLE = "पाठ 1: फलों के नाम और 1 से 5 तक गिनती";
 const CLASS1_VOCABULARY_CODES = new Set(["OBJ_02", "OBJ_03", "OBJ_04", "OBJ_05", "OBJ_06"]);
 
-const FALLBACK_CLASS1_DEMO: Class1DemoContent = {
-  lesson: {
-    id: 1,
-    title: CLASS1_LESSON_TITLE,
-    grade: 1,
-    subject: "Foundational Numeracy",
-    topic: "Fruits and Counting 1–5",
-    learning_outcome_hindi: "बच्चा 1 से 5 तक की वस्तुओं (फलों) को क्रम से गिन सकता है, उनकी सही संख्या बता सकता है और आम, केला जैसे फलों को अपनी मातृभाषा (मुंडारी) एवं हिंदी में पहचान सकता है।",
-    learning_outcome_mundari: "Hon ko 1 ate 5 habi jo-jo (uli, kela) leka daia ko, chimina mena udub daia ko ar Mundari ar Hindi te nutum udub daia ko.",
-    status: "approved",
-    version: 1,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    activities: [
-      {
-        id: 1,
-        lesson_id: 1,
-        activity_name: "फल पहचान और गिनती",
-        hindi_guide: "शिक्षक बच्चों को आम और केला दिखाते हुए गिनने को कहें।",
-        mundari_guide: "Hagako uli ar kela leka me.",
-        created_at: new Date().toISOString(),
-      },
-    ],
-    assessments: [
-      {
-        id: 1,
-        lesson_id: 1,
-        question_no: 1,
-        hindi_question: "आम को मुंडारी में क्या कहते हैं?",
-        mundari_question: "Uli chi kela?",
-        expected_answer: "Uli",
-        created_at: new Date().toISOString(),
-      },
-    ],
-  },
-  fruits: [
-    { id: "fruit-OBJ_02", kind: "fruit", hindi: "आम", mundariRoman: "Uli", sourceFile: "vocabulary.csv", audioPrompt: null },
-    { id: "fruit-OBJ_03", kind: "fruit", hindi: "केला", mundariRoman: "Kela", sourceFile: "vocabulary.csv", audioPrompt: null },
-    { id: "fruit-OBJ_04", kind: "fruit", hindi: "सेब", mundariRoman: "Seb", sourceFile: "vocabulary.csv", audioPrompt: null },
-    { id: "fruit-OBJ_05", kind: "fruit", hindi: "अमरूद", mundariRoman: "Amrud", sourceFile: "vocabulary.csv", audioPrompt: null },
-    { id: "fruit-OBJ_06", kind: "fruit", hindi: "संतरा", mundariRoman: "Santra", sourceFile: "vocabulary.csv", audioPrompt: null },
-  ],
-  numbers: [
-    { id: "number-1", kind: "number", hindi: "एक", mundariRoman: "Miyad", sourceFile: "numbers.csv", audioPrompt: null },
-    { id: "number-2", kind: "number", hindi: "दो", mundariRoman: "Bariya", sourceFile: "numbers.csv", audioPrompt: null },
-    { id: "number-3", kind: "number", hindi: "तीन", mundariRoman: "Apiya", sourceFile: "numbers.csv", audioPrompt: null },
-    { id: "number-4", kind: "number", hindi: "चार", mundariRoman: "Upuna", sourceFile: "numbers.csv", audioPrompt: null },
-    { id: "number-5", kind: "number", hindi: "पाँच", mundariRoman: "Moreya", sourceFile: "numbers.csv", audioPrompt: null },
-  ],
-  teacherScript: [
-    { id: "teacher-script-1", kind: "teacher-script", hindi: "आम गिनो", mundariRoman: "Uli leka me", sourceFile: "phrases.csv", audioPrompt: null },
-    { id: "teacher-script-2", kind: "teacher-script", hindi: "केला गिनो", mundariRoman: "Kela leka me", sourceFile: "phrases.csv", audioPrompt: null },
-  ],
-  instructions: [
-    { id: "instruction-1", kind: "instruction", hindi: "गिनती करो", mundariRoman: "Leka me", sourceFile: "instructions.csv", audioPrompt: null },
-  ],
-  activities: [
-    { id: "activity-1", kind: "activity", hindi: "शिक्षक बच्चों को आम और केला दिखाते हुए गिनने को कहें।", mundariRoman: "Hagako uli ar kela leka me.", sourceFile: "activities.csv", audioPrompt: null },
-  ],
-  assessments: [
-    { id: "assessment-1", kind: "assessment", hindi: "आम को मुंडारी में क्या कहते हैं?", mundariRoman: "Uli chi kela?", sourceFile: "assessments.csv", audioPrompt: null },
-  ],
-};
-
 export async function fetchClass1DemoContent(signal?: AbortSignal): Promise<Class1DemoContent> {
   try {
     const [lessons, vocabularyResponse, phraseResponse, numberResponse] = await Promise.all([
@@ -259,45 +206,8 @@ export async function fetchClass1DemoContent(signal?: AbortSignal): Promise<Clas
 
     return content;
   } catch (error) {
-    if (typeof window !== "undefined" && (localStorage.getItem("mozhi_demo_user") || window.location.hostname.includes("vercel.app"))) {
-      return FALLBACK_CLASS1_DEMO;
-    }
     throw error;
   }
-}
-
-export type TtsStatus = {
-  success: boolean;
-  mode: string;
-  language: string;
-  available: boolean;
-  modelAvailable?: boolean;
-  weightsPresent?: boolean;
-  serviceConfigured?: boolean;
-  audioUrl: string | null;
-  message: string;
-};
-
-export type TtsSynthesisResult = TtsStatus & {
-  voice?: string | null;
-};
-
-export async function fetchTtsStatus(language = "mundari"): Promise<TtsStatus> {
-  const response = await apiFetch(`/api/tts/status?language=${encodeURIComponent(language)}`);
-  const payload = await readApiJson<TtsStatus>(response, "Unable to check Mundari TTS status.");
-  if (!response.ok || !payload.success) throw new Error(payload.message || "Unable to check Mundari TTS status.");
-  return payload;
-}
-
-export async function synthesizeTts(ttsInput: string, language = "mundari"): Promise<TtsSynthesisResult> {
-  const response = await apiFetch("/api/tts/speak", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ tts_input: ttsInput, language }),
-  });
-  const payload = await readApiJson<TtsSynthesisResult>(response, "Mundari TTS is unavailable.");
-  if (!response.ok || !payload.success) throw new Error(payload.message || "Mundari TTS is unavailable.");
-  return payload;
 }
 
 export async function fetchLessons(signal?: AbortSignal): Promise<Lesson[]> {
@@ -311,9 +221,6 @@ export async function fetchLessons(signal?: AbortSignal): Promise<Lesson[]> {
 
     return payload.lessons;
   } catch (error) {
-    if (typeof window !== "undefined" && (localStorage.getItem("mozhi_demo_user") || window.location.hostname.includes("vercel.app"))) {
-      return [FALLBACK_CLASS1_DEMO.lesson];
-    }
     throw error;
   }
 }
@@ -424,9 +331,6 @@ export async function fetchLesson(lessonId: number): Promise<LessonDetail> {
     if (!response.ok || !payload.success) throw new Error(payload.message || "Unable to load lesson.");
     return payload.lesson;
   } catch (error) {
-    if (typeof window !== "undefined" && (localStorage.getItem("mozhi_demo_user") || window.location.hostname.includes("vercel.app"))) {
-      return FALLBACK_CLASS1_DEMO.lesson;
-    }
     throw error;
   }
 }
@@ -473,4 +377,152 @@ export async function publishPack(packId: number): Promise<OfflinePack> {
   const payload = await readApiJson<{ success: boolean; data: OfflinePack; message?: string }>(response, "Unable to publish offline pack.");
   if (!response.ok || !payload.success) throw new Error(payload.message || "Unable to publish offline pack.");
   return payload.data;
+}
+
+// ==========================================
+// AUTO-GENERATED MATERIALS APIS
+// ==========================================
+
+export async function generateWorksheetApi(lessonId: number): Promise<GeneratedWorksheet> {
+  const response = await apiFetch("/api/materials/worksheet/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ lesson_id: lessonId }),
+  });
+  const payload = await readApiJson<{ success: boolean; data: GeneratedWorksheet; message?: string }>(
+    response,
+    "Failed to generate worksheet."
+  );
+  if (!response.ok || !payload.success) throw new Error(payload.message || "Failed to generate worksheet.");
+  return payload.data;
+}
+
+export async function fetchWorksheetsApi(lessonId?: number): Promise<GeneratedWorksheet[]> {
+  const url = lessonId ? `/api/materials/worksheets?lesson_id=${lessonId}` : "/api/materials/worksheets";
+  const response = await apiFetch(url);
+  const payload = await readApiJson<{ success: boolean; data: GeneratedWorksheet[]; message?: string }>(
+    response,
+    "Failed to fetch worksheets."
+  );
+  if (!response.ok || !payload.success) throw new Error(payload.message || "Failed to fetch worksheets.");
+  return payload.data;
+}
+
+export async function updateWorksheetApi(
+  id: number,
+  data: { title?: string; content_json?: unknown; status?: MaterialStatus }
+): Promise<GeneratedWorksheet> {
+  const response = await apiFetch(`/api/materials/worksheet/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  const payload = await readApiJson<{ success: boolean; data: GeneratedWorksheet; message?: string }>(
+    response,
+    "Failed to update worksheet."
+  );
+  if (!response.ok || !payload.success) throw new Error(payload.message || "Failed to update worksheet.");
+  return payload.data;
+}
+
+export async function approveWorksheetApi(id: number): Promise<GeneratedWorksheet> {
+  const response = await apiFetch(`/api/materials/worksheet/${id}/approve`, { method: "POST" });
+  const payload = await readApiJson<{ success: boolean; data: GeneratedWorksheet; message?: string }>(
+    response,
+    "Failed to approve worksheet."
+  );
+  if (!response.ok || !payload.success) throw new Error(payload.message || "Failed to approve worksheet.");
+  return payload.data;
+}
+
+export async function publishWorksheetApi(id: number): Promise<GeneratedWorksheet> {
+  const response = await apiFetch(`/api/materials/worksheet/${id}/publish`, { method: "POST" });
+  const payload = await readApiJson<{ success: boolean; data: GeneratedWorksheet; message?: string }>(
+    response,
+    "Failed to publish worksheet."
+  );
+  if (!response.ok || !payload.success) throw new Error(payload.message || "Failed to publish worksheet.");
+  return payload.data;
+}
+
+export async function deleteWorksheetApi(id: number): Promise<void> {
+  const response = await apiFetch(`/api/materials/worksheet/${id}`, { method: "DELETE" });
+  const payload = await readApiJson<{ success: boolean; message?: string }>(response, "Failed to delete worksheet.");
+  if (!response.ok || !payload.success) throw new Error(payload.message || "Failed to delete worksheet.");
+}
+
+export function getWorksheetPdfUrl(id: number): string {
+  return `/api/materials/worksheet/${id}/pdf`;
+}
+
+export async function generateFlashcardsApi(lessonId: number): Promise<GeneratedFlashcards> {
+  const response = await apiFetch("/api/materials/flashcards/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ lesson_id: lessonId }),
+  });
+  const payload = await readApiJson<{ success: boolean; data: GeneratedFlashcards; message?: string }>(
+    response,
+    "Failed to generate flashcards."
+  );
+  if (!response.ok || !payload.success) throw new Error(payload.message || "Failed to generate flashcards.");
+  return payload.data;
+}
+
+export async function fetchFlashcardsApi(lessonId?: number): Promise<GeneratedFlashcards[]> {
+  const url = lessonId ? `/api/materials/flashcards?lesson_id=${lessonId}` : "/api/materials/flashcards";
+  const response = await apiFetch(url);
+  const payload = await readApiJson<{ success: boolean; data: GeneratedFlashcards[]; message?: string }>(
+    response,
+    "Failed to fetch flashcards."
+  );
+  if (!response.ok || !payload.success) throw new Error(payload.message || "Failed to fetch flashcards.");
+  return payload.data;
+}
+
+export async function updateFlashcardsApi(
+  id: number,
+  data: { content_json?: unknown; status?: MaterialStatus }
+): Promise<GeneratedFlashcards> {
+  const response = await apiFetch(`/api/materials/flashcards/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  const payload = await readApiJson<{ success: boolean; data: GeneratedFlashcards; message?: string }>(
+    response,
+    "Failed to update flashcards."
+  );
+  if (!response.ok || !payload.success) throw new Error(payload.message || "Failed to update flashcards.");
+  return payload.data;
+}
+
+export async function approveFlashcardsApi(id: number): Promise<GeneratedFlashcards> {
+  const response = await apiFetch(`/api/materials/flashcards/${id}/approve`, { method: "POST" });
+  const payload = await readApiJson<{ success: boolean; data: GeneratedFlashcards; message?: string }>(
+    response,
+    "Failed to approve flashcards."
+  );
+  if (!response.ok || !payload.success) throw new Error(payload.message || "Failed to approve flashcards.");
+  return payload.data;
+}
+
+export async function publishFlashcardsApi(id: number): Promise<GeneratedFlashcards> {
+  const response = await apiFetch(`/api/materials/flashcards/${id}/publish`, { method: "POST" });
+  const payload = await readApiJson<{ success: boolean; data: GeneratedFlashcards; message?: string }>(
+    response,
+    "Failed to publish flashcards."
+  );
+  if (!response.ok || !payload.success) throw new Error(payload.message || "Failed to publish flashcards.");
+  return payload.data;
+}
+
+export async function deleteFlashcardsApi(id: number): Promise<void> {
+  const response = await apiFetch(`/api/materials/flashcards/${id}`, { method: "DELETE" });
+  const payload = await readApiJson<{ success: boolean; message?: string }>(response, "Failed to delete flashcards.");
+  if (!response.ok || !payload.success) throw new Error(payload.message || "Failed to delete flashcards.");
+}
+
+export function getFlashcardsPdfUrl(id: number): string {
+  return `/api/materials/flashcards/${id}/pdf`;
 }

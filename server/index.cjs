@@ -18,6 +18,7 @@ const dashboardRoutes = require('./routes/dashboard.cjs');
 const packRoutes = require('./routes/packs.cjs');
 const worksheetRoutes = require('./routes/worksheets.cjs');
 const flashcardRoutes = require('./routes/flashcards.cjs');
+const materialsRoutes = require('./routes/materials.cjs');
 const adminRoutes = require('./routes/admin.cjs');
 const { attachAuth, requireAuth } = require('./middleware/auth.cjs');
 const { csrfProtection } = require('./middleware/csrf.cjs');
@@ -54,7 +55,7 @@ app.use(attachAuth);
 app.use(csrfProtection(allowedOrigins));
 
 app.get('/api/health', (req, res) => {
-  res.status(200).json({ success: true, message: 'Backend is running' });
+  res.status(200).json({ ok: true, service: 'mozilearn-api' });
 });
 
 app.use(authRoutes);
@@ -86,6 +87,8 @@ app.use('/api/translations', requireAuth);
 app.use(translationRoutes);
 app.use('/api/sync', requireAuth);
 app.use(syncRoutes);
+app.use('/api/materials', requireAuth);
+app.use(materialsRoutes);
 
 app.use('/api', (req, res) => {
   return res.status(404).json({ success: false, message: 'API endpoint not found' });

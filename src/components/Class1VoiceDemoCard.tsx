@@ -1,5 +1,6 @@
 import { AlertTriangle, BookOpen, CheckCircle2, LoaderCircle, Mic, Square, Upload } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { MundariPlayButton } from "./MundariPlayButton";
 import { fetchClass1DemoContent, lookupClass1Hindi, transcribeHindiAudio, type Class1DemoContent, type Class1DemoItem } from "../lib/api";
 
 type DemoMode = "live" | "demo";
@@ -262,6 +263,7 @@ export function Class1VoiceDemoCard() {
             <div className="rounded-lg border border-forest-100 bg-forest-50/50 p-4">
               <p className="text-xs font-bold tracking-widest text-forest-700 uppercase">Mundari Roman</p>
               <p className="mt-3 min-h-16 text-sm leading-6 text-slate-700">{selectedItem?.mundariRoman || (state === "NOT_FOUND" ? "Not available" : "Select a phrase or speak Hindi to find an exact lesson match.")}</p>
+              {selectedItem && <MundariPlayButton text={selectedItem.mundariRoman} sourceType="class1-lookup" verified compact />}
             </div>
           </div>
 

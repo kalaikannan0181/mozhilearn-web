@@ -1,11 +1,12 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
-const AUDIO_ROOT = path.join(__dirname, '..', '..', 'public', 'audio');
+const AUDIO_ROOT = path.resolve(__dirname, '..', '..', 'public', 'audio');
+const GENERATED_AUDIO_ROOT = path.join(AUDIO_ROOT, 'generated');
 const MODEL_ROOT = path.resolve(process.env.TTS_MODEL_DIR || path.join(__dirname, '..', '..', 'tts-main', 'tts-main', 'TTS'));
 const DEFAULT_MODEL_ID = 'facebook/mms-tts-unr';
 const REQUIRED_PYTHON_PACKAGES = ['torch', 'transformers', 'scipy', 'numpy'];
-const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.webm']);
 
 function listModelFiles() {
   if (!fs.existsSync(MODEL_ROOT)) return [];
@@ -16,40 +17,20 @@ function hasModelWeights() {
   return listModelFiles().some((name) => /^(model\.safetensors|pytorch_model\.bin|model\..+\.safetensors|pytorch_model\..+\.bin)$/.test(name));
 }
 
-function hasTokenizerFiles() {
-  const files = listModelFiles();
-  return files.some((name) => /^(tokenizer_config\.json|tokenizer\.json|tokenizer\.jsonl|vocab\.json|merges\.txt|sentencepiece\.model|spiece\.model)$/.test(name));
-}
-
-function getMissingPythonPackages() {
-  const missing = [];
-  for (const pkg of REQUIRED_PYTHON_PACKAGES) {
-    try {
-      require.resolve(pkg);
-    } catch {
-      missing.push(pkg);
-    }
-  }
-  return missing;
-}
-
 function getTtsDiagnostics() {
   const modelFiles = listModelFiles();
   const checkpointFiles = modelFiles.filter((name) => /^(model\.safetensors|pytorch_model\.bin|model\..+\.safetensors|pytorch_model\..+\.bin)$/.test(name));
   const tokenizerFiles = modelFiles.filter((name) => /^(tokenizer_config\.json|tokenizer\.json|tokenizer\.jsonl|vocab\.json|merges\.txt|sentencepiece\.model|spiece\.model)$/.test(name));
-  const missingDependencies = getMissingPythonPackages();
-  const status = checkpointFiles.length > 0 && tokenizerFiles.length > 0 && missingDependencies.length === 0 ? 'ready' : 'unavailable';
+  const status = checkpointFiles.length === 0 ? 'model_missing' : tokenizerFiles.length === 0 ? 'model_load_failed' : 'loading_model';
 
   return {
     status,
-    available: status === 'ready',
+    available: false,
     modelId: DEFAULT_MODEL_ID,
-    modelDir: MODEL_ROOT,
     modelFiles,
     checkpointFound: checkpointFiles.length > 0,
     tokenizerFound: tokenizerFiles.length > 0,
     requiredPythonPackages: [...REQUIRED_PYTHON_PACKAGES],
-    missingDependencies,
     currentTtsEntryPoint: 'tts-main/tts-main/tts_service.py',
     currentExpressEndpoint: '/api/tts',
     currentFrontendEntryPoint: 'src/main.tsx -> src/App.tsx',
@@ -58,9 +39,7 @@ function getTtsDiagnostics() {
       ? 'Mundari TTS unavailable: model weights missing.'
       : tokenizerFiles.length === 0
         ? 'Mundari TTS unavailable: tokenizer missing.'
-        : missingDependencies.length > 0
-          ? `Mundari TTS unavailable: missing Python packages: ${missingDependencies.join(', ')}.`
-          : 'Mundari TTS is ready to serve audio.',
+        : 'Mundari TTS model status must be confirmed by the Python service.',
   };
 }
 
@@ -77,148 +56,80 @@ function normalizeLanguage(language) {
   return normalized || 'mundari';
 }
 
-function sanitizeSegment(value) {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'item';
-}
-
-function resolveFileFromAudioUrl(audioUrl) {
-  if (typeof audioUrl !== 'string' || !audioUrl.trim()) {
-    return null;
-  }
-
-  const cleanAudioUrl = audioUrl.trim();
-  if (!cleanAudioUrl.startsWith('/')) {
-    return null;
-  }
-
-  const relativePath = cleanAudioUrl.replace(/^\/+/, '');
-  const filePath = path.join(__dirname, '..', '..', relativePath);
-
-  if (!filePath.startsWith(AUDIO_ROOT) || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
-    return null;
-  }
-
-  return { filePath, publicPath: cleanAudioUrl };
-}
-
-function findPreRecordedAudio({ text, language, audioUrl }) {
-  const resolvedFromUrl = resolveFileFromAudioUrl(audioUrl);
-  if (resolvedFromUrl) {
-    return resolvedFromUrl.publicPath;
-  }
-
-  const safeText = sanitizeSegment(text);
+async function getAudioStatus({ language = 'mundari' } = {}) {
   const normalizedLanguage = normalizeLanguage(language);
-  const searchRoots = [path.join(AUDIO_ROOT, normalizedLanguage), AUDIO_ROOT];
-
-  const candidates = new Set();
-  for (const root of searchRoots) {
-    if (!fs.existsSync(root)) {
-      continue;
-    }
-
-    const walk = (currentDir) => {
-      for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {
-        const entryPath = path.join(currentDir, entry.name);
-        if (entry.isDirectory()) {
-          walk(entryPath);
-          continue;
-        }
-
-        if (!AUDIO_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
-          continue;
-        }
-
-        const fileName = path.basename(entry.name, path.extname(entry.name)).toLowerCase();
-        const fileStem = fileName.replace(/[^a-z0-9]+/g, '-');
-        if (fileStem === safeText || fileStem.includes(safeText) || safeText.includes(fileStem)) {
-          candidates.add(entryPath);
-        }
-      }
+  const serviceUrl = process.env.TTS_SERVICE_URL?.replace(/\/+$/, '');
+  if (!serviceUrl) {
+    const diagnostics = getTtsDiagnostics();
+    return {
+      success: true,
+      status: diagnostics.status,
+      mode: 'unavailable',
+      language: normalizedLanguage,
+      available: false,
+      model: DEFAULT_MODEL_ID,
+      modelAvailable: false,
+      weightsPresent: diagnostics.checkpointFound,
+      tokenizerFound: diagnostics.tokenizerFound,
+      serviceConfigured: false,
+      reason: diagnostics.checkpointFound ? 'tts_service_not_configured' : 'model_missing',
+      message: diagnostics.checkpointFound ? 'Mundari TTS service is not configured.' : diagnostics.message,
     };
-
-    walk(root);
   }
 
-  if (candidates.size === 0) {
-    return null;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 3000);
+  try {
+    const response = await fetch(`${serviceUrl}/status`, { signal: controller.signal });
+    const payload = await response.json();
+    const available = response.ok && payload.available === true && payload.status === 'ready';
+    return {
+      success: true,
+      status: payload.status || 'model_load_failed',
+      mode: available ? 'model-service' : 'unavailable',
+      language: normalizedLanguage,
+      available,
+      model: DEFAULT_MODEL_ID,
+      modelAvailable: available,
+      weightsPresent: Boolean(payload.checkpointFound),
+      tokenizerFound: Boolean(payload.tokenizerFound),
+      serviceConfigured: true,
+      reason: available ? undefined : payload.status || 'model_load_failed',
+      message: payload.message || (available ? 'Mundari TTS model is ready.' : 'Mundari TTS is unavailable.'),
+    };
+  } catch {
+    return {
+      success: true,
+      status: 'model_load_failed',
+      mode: 'unavailable',
+      language: normalizedLanguage,
+      available: false,
+      model: DEFAULT_MODEL_ID,
+      modelAvailable: false,
+      weightsPresent: false,
+      tokenizerFound: false,
+      serviceConfigured: true,
+      reason: 'tts_service_unavailable',
+      message: 'Mundari TTS service is unavailable.',
+    };
+  } finally {
+    clearTimeout(timeout);
   }
-
-  const selected = [...candidates].sort((a, b) => a.length - b.length)[0];
-  const relativePath = path.relative(path.join(__dirname, '..', '..'), selected).split(path.sep).join('/');
-  return `/${relativePath}`;
 }
 
-function getAudioStatus({ language = 'mundari', text }) {
-  const normalizedLanguage = normalizeLanguage(language);
-  const audioUrl = findPreRecordedAudio({ text, language: normalizedLanguage });
-  const diagnostics = getTtsDiagnostics();
-  const serviceConfigured = Boolean(process.env.TTS_SERVICE_URL);
-  return {
-    success: true,
-    status: diagnostics.status,
-    mode: audioUrl ? 'prerecorded' : diagnostics.status === 'ready' && serviceConfigured ? 'model-service' : 'unavailable',
-    language: normalizedLanguage,
-    available: Boolean(audioUrl),
-    audioUrl: audioUrl || null,
-    modelAvailable: diagnostics.status === 'ready' && serviceConfigured,
-    weightsPresent: diagnostics.checkpointFound,
-    tokenizerFound: diagnostics.tokenizerFound,
-    message: audioUrl
-      ? 'Verified prerecorded audio is available.'
-      : diagnostics.message,
-    serviceConfigured,
-    statusCode: diagnostics.status === 'ready' ? 200 : 503,
-  };
-}
-
-async function synthesize({ ttsInput, language = 'mundari', audioUrl, voice } = {}) {
+async function synthesize({ ttsInput, ttsInputScript, language = 'mundari' } = {}) {
   const normalizedLanguage = normalizeLanguage(language);
   const trimmedText = typeof ttsInput === 'string' ? ttsInput.trim() : '';
 
-  if (!trimmedText) {
+  if (!trimmedText || trimmedText.length > 2000 || ttsInputScript !== 'Odia') {
     return {
       success: false,
-      status: 'unavailable',
+      status: 'invalid_input',
       mode: 'unavailable',
       language: normalizedLanguage,
       available: false,
       statusCode: 400,
-      message: 'Empty text provided for TTS.',
-    };
-  }
-
-  const prerecordedAudioUrl = findPreRecordedAudio({ text: trimmedText, language: normalizedLanguage, audioUrl });
-  if (prerecordedAudioUrl) {
-    return {
-      success: true,
-      status: 'ready',
-      mode: 'prerecorded',
-      language: normalizedLanguage,
-      available: true,
-      statusCode: 200,
-      audioUrl: prerecordedAudioUrl,
-      message: 'Verified prerecorded audio is available.',
-    };
-  }
-
-  const diagnostics = getTtsDiagnostics();
-  if (diagnostics.status !== 'ready') {
-    return {
-      success: false,
-      status: 'unavailable',
-      mode: 'unavailable',
-      language: normalizedLanguage,
-      available: false,
-      audioUrl: null,
-      statusCode: 503,
-      weightsPresent: diagnostics.checkpointFound,
-      tokenizerFound: diagnostics.tokenizerFound,
-      message: diagnostics.message,
+      message: 'Odia model-compatible tts_input of at most 2000 characters is required.',
     };
   }
 
@@ -227,58 +138,61 @@ async function synthesize({ ttsInput, language = 'mundari', audioUrl, voice } = 
       const response = await fetch(`${process.env.TTS_SERVICE_URL.replace(/\/+$/, '')}/tts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tts_input: trimmedText, language: normalizedLanguage, voice: voice || null }),
+        body: JSON.stringify({ tts_input: trimmedText, tts_input_script: ttsInputScript, language: normalizedLanguage }),
       });
       const payload = await response.json();
-      if (response.ok && payload.success && typeof payload.audioUrl === 'string' && payload.audioUrl) {
-        return payload;
+      if (response.ok && payload.success && typeof payload.audio_base64 === 'string' && payload.format === 'wav') {
+        const audio = Buffer.from(payload.audio_base64, 'base64');
+        if (audio.length < 44 || audio.toString('ascii', 0, 4) !== 'RIFF' || audio.toString('ascii', 8, 12) !== 'WAVE') {
+          return { success: false, status: 'synthesis_failed', available: false, statusCode: 500, message: 'Mundari TTS service returned invalid audio.' };
+        }
+        const cacheKey = crypto.createHash('sha256').update(`${DEFAULT_MODEL_ID}|${ttsInputScript}|${trimmedText}`).digest('hex');
+        fs.mkdirSync(GENERATED_AUDIO_ROOT, { recursive: true });
+        const audioPath = path.join(GENERATED_AUDIO_ROOT, `${cacheKey}.wav`);
+        if (!fs.existsSync(audioPath)) fs.writeFileSync(audioPath, audio, { flag: 'wx' });
+        return { success: true, status: 'success', mode: 'model', available: true, statusCode: 200, audioUrl: `/api/tts/audio/${cacheKey}.wav`, format: 'wav', model: DEFAULT_MODEL_ID };
       }
       return {
         success: false,
-        status: 'unavailable',
+        status: payload.status || 'model_load_failed',
         mode: 'unavailable',
         language: normalizedLanguage,
         available: false,
-        audioUrl: null,
         statusCode: response.status || 503,
-        weightsPresent: diagnostics.checkpointFound,
-        tokenizerFound: diagnostics.tokenizerFound,
+        reason: payload.reason || payload.status || 'tts_service_unavailable',
         message: payload.message || 'Mundari TTS service did not return verified audio.',
       };
     } catch {
       return {
         success: false,
-        status: 'unavailable',
+        status: 'model_load_failed',
         mode: 'unavailable',
         language: normalizedLanguage,
         available: false,
-        audioUrl: null,
         statusCode: 503,
-        weightsPresent: diagnostics.checkpointFound,
-        tokenizerFound: diagnostics.tokenizerFound,
+        reason: 'tts_service_unavailable',
         message: 'Mundari TTS service is unavailable.',
       };
     }
   }
 
+  const diagnostics = getTtsDiagnostics();
+  const modelMissing = !diagnostics.checkpointFound;
   return {
     success: false,
-    status: 'unavailable',
+    status: modelMissing ? 'model_missing' : 'model_load_failed',
     mode: 'unavailable',
     language: normalizedLanguage,
     available: false,
-    audioUrl: null,
     statusCode: 503,
-    weightsPresent: diagnostics.checkpointFound,
-    tokenizerFound: diagnostics.tokenizerFound,
-    message: diagnostics.message,
+    reason: modelMissing ? 'model_missing' : 'tts_service_not_configured',
+    message: modelMissing ? 'Mundari TTS unavailable: model weights missing.' : 'Mundari TTS service is not configured.',
   };
 }
 
 module.exports = {
   AUDIO_ROOT,
   MODEL_ROOT,
-  findPreRecordedAudio,
   getAudioStatus,
   getTtsDiagnostics,
   hasModelWeights,

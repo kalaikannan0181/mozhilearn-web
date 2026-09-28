@@ -82,3 +82,79 @@ export interface Translation {
   created_at: string;
   updated_at: string;
 }
+
+export type MaterialStatus = "ai_generated" | "teacher_reviewed" | "approved" | "published";
+
+export interface WorksheetItem {
+  hindi: string;
+  mundari_roman: string | null;
+  translation_id?: number | string | null;
+  translation_status?: "verified" | "missing";
+  translation_mismatch?: boolean;
+}
+
+export interface WorksheetSection {
+  type: "header" | "vocabulary" | "matching" | "counting" | "activity" | "assessment";
+  title?: string;
+  instructions?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  items?: any[];
+  [key: string]: unknown;
+}
+
+export interface WorksheetContent {
+  title: string;
+  grade: number;
+  subject: string;
+  topic: string;
+  instructions: string[];
+  sections: WorksheetSection[];
+}
+
+export interface GeneratedWorksheet {
+  id: number;
+  lesson_id: number;
+  created_by: number | null;
+  title: string;
+  content_json: WorksheetContent;
+  status: MaterialStatus;
+  generator_version: string;
+  source_lesson_id: number;
+  source_translation_ids: string[];
+  created_at: string;
+  updated_at: string;
+  author_name?: string;
+  lesson_title?: string;
+}
+
+export interface FlashcardItem {
+  front_hindi: string;
+  back_mundari_roman: string | null;
+  translation_id?: number | string | null;
+  translation_status: "verified" | "missing";
+  translation_mismatch?: boolean;
+  image_prompt?: string;
+  lesson_id?: number;
+}
+
+export interface FlashcardsContent {
+  title: string;
+  lesson_id: number;
+  cards: FlashcardItem[];
+}
+
+export interface GeneratedFlashcards {
+  id: number;
+  lesson_id: number;
+  created_by: number | null;
+  content_json: FlashcardsContent;
+  status: MaterialStatus;
+  generator_version: string;
+  source_lesson_id: number;
+  source_translation_ids: string[];
+  created_at: string;
+  updated_at: string;
+  author_name?: string;
+  lesson_title?: string;
+}
+

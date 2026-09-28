@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+import base64
+import importlib.util
+import io
 import json
 import os
-import uuid
+import threading
+import unicodedata
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MODEL_DIR = Path(os.environ.get("TTS_MODEL_DIR", Path(__file__).resolve().parent / "TTS")).resolve()
-AUDIO_ROOT = Path(os.environ.get("TTS_AUDIO_ROOT", PROJECT_ROOT / "public" / "audio" / "mundari")).resolve()
 HOST = os.environ.get("TTS_HOST", "127.0.0.1")
 PORT = int(os.environ.get("TTS_PORT", "5100"))
 REQUIRED_PACKAGES = ["torch", "transformers", "scipy", "numpy"]
@@ -16,10 +18,12 @@ REQUIRED_PACKAGES = ["torch", "transformers", "scipy", "numpy"]
 model = None
 tokenizer = None
 model_error = ""
+inference_lock = threading.Lock()
 
 
 def model_weights_present() -> bool:
-    return any(MODEL_DIR.glob("model.safetensors")) or any(MODEL_DIR.glob("pytorch_model.bin"))
+    patterns = ("model.safetensors", "model-*.safetensors", "pytorch_model.bin", "pytorch_model-*.bin")
+    return any(any(MODEL_DIR.glob(pattern)) for pattern in patterns)
 
 
 def tokenizer_present() -> bool:
@@ -38,45 +42,38 @@ def tokenizer_present() -> bool:
 
 
 def missing_python_packages() -> list[str]:
-    missing: list[str] = []
-    for package in REQUIRED_PACKAGES:
-        try:
-            __import__(package)
-        except Exception:
-            missing.append(package)
-    return missing
+    return [package for package in REQUIRED_PACKAGES if importlib.util.find_spec(package) is None]
 
 
 def diagnostics_payload() -> dict:
-    model_files = sorted([path.name for path in MODEL_DIR.iterdir()]) if MODEL_DIR.exists() else []
     checkpoint_found = model_weights_present()
     tokenizer_found = tokenizer_present()
     missing_packages = missing_python_packages()
-    status = "ready" if checkpoint_found and tokenizer_found and not missing_packages else "unavailable"
-    message = (
-        "Mundari TTS unavailable: model weights missing."
-        if not checkpoint_found
-        else "Mundari TTS unavailable: tokenizer missing."
-        if not tokenizer_found
-        else f"Mundari TTS unavailable: missing Python packages: {', '.join(missing_packages)}."
-        if missing_packages
-        else "Mundari TTS is ready to serve audio."
-    )
+    status = "ready" if model is not None and tokenizer is not None else "model_missing" if not checkpoint_found else "model_load_failed"
+    if not checkpoint_found:
+        message = "Mundari TTS unavailable: model weights missing."
+    elif not tokenizer_found:
+        status = "model_load_failed"
+        message = "Mundari TTS unavailable: tokenizer files missing."
+    elif missing_packages:
+        status = "model_load_failed"
+        message = "Mundari TTS unavailable: required Python packages are missing."
+    elif model_error:
+        status = "model_load_failed"
+        message = "Mundari TTS unavailable: model could not be loaded."
+    else:
+        message = "Mundari TTS model is ready." if status == "ready" else "Mundari TTS model is loading."
     return {
-        "success": True,
+        "success": status == "ready",
         "status": status,
         "available": status == "ready",
         "modelId": "facebook/mms-tts-unr",
-        "modelDir": str(MODEL_DIR),
-        "modelFiles": model_files,
         "checkpointFound": checkpoint_found,
         "tokenizerFound": tokenizer_found,
         "requiredPythonPackages": REQUIRED_PACKAGES,
         "missingDependencies": missing_packages,
-        "currentTtsEntryPoint": str(Path(__file__).resolve()),
+        "inputScript": "Odia",
         "currentExpressEndpoint": "/api/tts",
-        "currentFrontendEntryPoint": "src/main.tsx -> src/App.tsx",
-        "hardCodedPaths": [],
         "message": message,
     }
 
@@ -94,7 +91,7 @@ def load_model() -> None:
         model = VitsModel.from_pretrained(str(MODEL_DIR), local_files_only=True)
         model.eval()
     except Exception as exc:
-        model_error = f"Mundari TTS model could not be loaded: {exc}"
+        model_error = str(exc)
 
 
 def json_response(handler: BaseHTTPRequestHandler, status: int, payload: dict) -> None:
@@ -121,23 +118,42 @@ class TtsHandler(BaseHTTPRequestHandler):
 
         try:
             size = int(self.headers.get("Content-Length", "0"))
+            if size <= 0 or size > 16384:
+                json_response(self, 400, {"success": False, "status": "invalid_input", "message": "Request body must be at most 16 KB."})
+                return
             payload = json.loads(self.rfile.read(size))
         except (ValueError, json.JSONDecodeError):
             json_response(self, 400, {"success": False, "status": "unavailable", "message": "Invalid JSON request."})
             return
 
-        text = payload.get("tts_input", "") if isinstance(payload, dict) else ""
-        if not isinstance(text, str) or not text.strip():
-            json_response(self, 400, {"success": False, "status": "unavailable", "message": "Model-compatible tts_input is required."})
+        if not isinstance(payload, dict):
+            json_response(self, 400, {"success": False, "status": "invalid_input", "message": "A JSON object is required."})
+            return
+
+        text = payload.get("tts_input", "")
+        if not isinstance(text, str) or not text.strip() or len(text) > 2000:
+            json_response(self, 400, {"success": False, "status": "invalid_input", "message": "Model-compatible tts_input of 1 to 2000 characters is required."})
+            return
+        if payload.get("tts_input_script") != "Odia":
+            json_response(self, 400, {"success": False, "status": "invalid_input", "message": "tts_input_script must be Odia."})
+            return
+        if not any(character.isalpha() for character in text) or any(
+            not character.isspace()
+            and "ORIYA" not in unicodedata.name(character, "")
+            and character not in ".,!?'-"
+            for character in text
+        ):
+            json_response(self, 400, {"success": False, "status": "invalid_input", "message": "tts_input must contain only model-supported Odia script text."})
             return
 
         report = diagnostics_payload()
-        if report["status"] != "ready":
-            json_response(self, 503, {"success": False, **report, "status": "unavailable", "message": report["message"]})
+        if not report["available"]:
+            reason = "model_missing" if not report["checkpointFound"] else "model_load_failed"
+            json_response(self, 503, {"success": False, "available": False, "reason": reason, "status": report["status"], "message": report["message"]})
             return
 
         if model is None or tokenizer is None:
-            json_response(self, 503, {"success": False, "status": "unavailable", "message": model_error or "Mundari TTS model is unavailable."})
+            json_response(self, 503, {"success": False, "available": False, "reason": "model_load_failed", "status": "model_load_failed", "message": "Mundari TTS model is unavailable."})
             return
 
         try:
@@ -151,15 +167,14 @@ class TtsHandler(BaseHTTPRequestHandler):
                 json_response(self, 422, {"success": False, "status": "unavailable", "message": "The Mundari MMS tokenizer did not accept this tts_input. Supply model-native Odia-script text."})
                 return
 
-            with torch.no_grad():
+            with inference_lock, torch.no_grad():
                 waveform = model(**inputs).waveform
             values = waveform.detach().cpu().numpy()
-            AUDIO_ROOT.mkdir(parents=True, exist_ok=True)
-            filename = f"{uuid.uuid4().hex}.wav"
-            wav.write(str(AUDIO_ROOT / filename), int(model.config.sampling_rate), values[0].astype("float32"))
-            json_response(self, 200, {"success": True, "status": "ready", "mode": "model", "available": True, "audioUrl": f"/api/tts/audio/mundari/{filename}", "message": "Verified Mundari audio generated."})
-        except Exception as exc:
-            json_response(self, 500, {"success": False, "status": "unavailable", "message": f"Mundari TTS synthesis failed: {exc}"})
+            audio_buffer = io.BytesIO()
+            wav.write(audio_buffer, int(model.config.sampling_rate), values[0].astype("float32"))
+            json_response(self, 200, {"success": True, "status": "success", "mode": "model", "available": True, "audio_base64": base64.b64encode(audio_buffer.getvalue()).decode("ascii"), "format": "wav", "modelId": "facebook/mms-tts-unr"})
+        except Exception:
+            json_response(self, 500, {"success": False, "available": False, "status": "synthesis_failed", "reason": "synthesis_failed", "message": "Mundari TTS synthesis failed."})
 
 
 if __name__ == "__main__":

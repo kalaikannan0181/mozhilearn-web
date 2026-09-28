@@ -1,6 +1,27 @@
 const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+const CONNECTION_ERROR_MESSAGE = 'Unable to connect to the server. Please check the server connection.';
 let csrfToken: string | null = null;
 let csrfTokenRequest: Promise<string> | null = null;
+
+export function describeNetworkFailure(error: unknown): string {
+  const rawMessage = error instanceof Error ? error.message : String(error ?? '');
+  const normalized = rawMessage.toLowerCase();
+
+  if (
+    normalized.includes('failed to fetch') ||
+    normalized.includes('networkerror') ||
+    normalized.includes('load failed') ||
+    normalized.includes('fetch failed') ||
+    normalized.includes('api server') ||
+    normalized.includes('backend api') ||
+    normalized.includes('vite_api_url') ||
+    normalized.includes('not configured')
+  ) {
+    return CONNECTION_ERROR_MESSAGE;
+  }
+
+  return rawMessage || CONNECTION_ERROR_MESSAGE;
+}
 
 export function getApiBaseUrl(): string {
   return API_BASE_URL;
@@ -59,7 +80,21 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
   if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
     headers.set('X-CSRF-Token', await getCsrfToken());
   }
-  return fetch(apiUrl(path), { ...options, headers, credentials: 'include' });
+
+  try {
+    return await fetch(apiUrl(path), { ...options, headers, credentials: 'include' });
+  } catch (error) {
+    if (import.meta.env.DEV) {
+      console.debug('[apiFetch]', {
+        method,
+        path,
+        apiBaseUrl: API_BASE_URL,
+        requestUrl: apiUrl(path),
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+    throw new Error(describeNetworkFailure(error));
+  }
 }
 
 export async function readApiJson<T>(response: Response, fallbackMessage: string): Promise<T> {
@@ -74,10 +109,17 @@ export async function readApiJson<T>(response: Response, fallbackMessage: string
   } catch {
     const isVercel = typeof window !== 'undefined' && window.location.hostname.includes('vercel.app');
     if (!API_BASE_URL && isVercel) {
-      throw new Error(
-        'Backend API is not configured on Vercel. Please set VITE_API_URL in your Vercel environment variables or use Demo Mode to test the UI.'
-      );
+      throw new Error(CONNECTION_ERROR_MESSAGE);
     }
+
+    if (!API_BASE_URL) {
+      throw new Error(CONNECTION_ERROR_MESSAGE);
+    }
+
+    if (response.ok) {
+      throw new Error(fallbackMessage);
+    }
+
     throw new Error(`${fallbackMessage} (HTTP ${response.status})`);
   }
-}
+}

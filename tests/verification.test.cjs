@@ -8,8 +8,10 @@ const { Pool } = require('pg');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env.local') });
 
 const projectRoot = path.resolve(__dirname, '..');
-const apiBase = 'http://localhost:5000';
-const webBase = 'http://localhost:8443';
+const apiPort = Number(process.env.TEST_API_PORT || 5500);
+const webPort = Number(process.env.TEST_WEB_PORT || 8544);
+const apiBase = `http://localhost:${apiPort}`;
+const webBase = `http://localhost:${webPort}`;
 const dbUrl = process.env.DATABASE_URL;
 assert.ok(dbUrl, 'DATABASE_URL must be configured for automated verification.');
 
@@ -66,7 +68,7 @@ async function startBackendIfNeeded() {
   if (await backendAvailable()) return;
   backendProcess = spawn(process.execPath, ['server/index.cjs'], {
     cwd: projectRoot,
-    env: { ...process.env, PORT: '5000', NODE_ENV: 'development' },
+    env: { ...process.env, PORT: String(apiPort), NODE_ENV: 'development' },
     stdio: 'inherit',
   });
   await waitForHttp(`${apiBase}/api/health`);
@@ -80,9 +82,9 @@ async function startFrontendIfNeeded() {
     throw new Error('Vite binary not found at ' + viteBin);
   }
 
-  frontendProcess = spawn(process.execPath, [viteBin, '--host', '0.0.0.0', '--port', '8443', '--strictPort'], {
+  frontendProcess = spawn(process.execPath, [viteBin, '--host', '0.0.0.0', '--port', String(webPort), '--strictPort'], {
     cwd: projectRoot,
-    env: { ...process.env, BROWSER: 'none' },
+    env: { ...process.env, BROWSER: 'none', VITE_API_URL: apiBase },
     stdio: 'inherit',
   });
 
@@ -230,6 +232,10 @@ test('environment and project discovery checks', async () => {
 });
 
 test('database health and integrity checks', async () => {
+  const healthResponse = await fetch(`${apiBase}/api/health`);
+  assert.equal(healthResponse.status, 200);
+  assert.deepEqual(await healthResponse.json(), { ok: true, service: 'mozilearn-api' });
+
   const health = await api('/api/test-db');
   assert.equal(health.status, 200);
   const text = await health.text();

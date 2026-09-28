@@ -9,19 +9,22 @@
   "scripts": {
     "dev": "concurrently -k -n api,web \"node server/index.cjs\" \"vite\"",
     "dev:all": "npm run dev",
+    "server:dev": "node --watch server/index.cjs",
     "build": "vite build",
     "preview": "vite preview",
     "format": "oxfmt",
     "server": "node server/index.cjs",
+    "migrate": "node server/migrate.cjs",
     "test": "node --test tests/**/*.test.cjs",
     "dataset:manifest": "node scripts/build-approved-import-manifest.cjs",
     "dataset:dry-run": "node scripts/dry-run-approved-import.cjs",
-    "db:migrate": "node server/migrate.cjs",
+    "db:migrate": "npm run migrate",
     "db:status": "node server/db-status.cjs",
     "import:csv": "node server/import.cjs",
     "import:json": "node server/import.cjs"
   },
   "dependencies": {
+    "@expo-google-fonts/noto-sans-devanagari": "^0.4.1",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "csv-parse": "^7.0.3",

@@ -17,6 +17,7 @@ import { Link, useNavigate } from "react-router";
 import { BrandMark } from "../components/BrandMark";
 import { StatusBadge } from "../components/StatusBadge";
 import { Class1VoiceDemoCard } from "../components/Class1VoiceDemoCard";
+import { ClassroomMaterialsGenerator } from "../components/ClassroomMaterialsGenerator";
 import { useAuth } from "../features/auth/AuthProvider";
 import { createLesson, fetchLessons, translateHindiToMundari } from "../lib/api";
 import type { CreateLessonInput, Lesson } from "../types/lesson";
@@ -364,6 +365,8 @@ export function DashboardPage() {
           </section>
 
           <Class1VoiceDemoCard />
+
+          <ClassroomMaterialsGenerator lessons={lessons} />
 
           <section id="create-lesson" className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_1px_3px_rgb(15_23_42/0.03)] sm:p-6">
             <div>
