@@ -668,8 +668,8 @@ export function ClassroomMaterialsGenerator({
 
                         {section.type === "matching" && (
                           <div className="grid gap-2 sm:grid-cols-2">
-                            {Array.isArray(section.items) &&
-                              section.items.map((item, idx) => (
+                            {Array.isArray(section.pairs) &&
+                              section.pairs.map((item, idx) => (
                                 <div
                                   key={idx}
                                   className="flex items-center justify-between rounded-lg border border-dashed border-slate-300 p-2.5 text-xs"
@@ -691,14 +691,14 @@ export function ClassroomMaterialsGenerator({
                               section.items.map((item, idx) => (
                                 <div key={idx} className="rounded-lg bg-slate-50 p-3 text-xs">
                                   <p className="font-semibold text-slate-900">
-                                    {idx + 1}. {item.prompt_hindi}
+                                    {idx + 1}. {item.task_hindi || item.prompt_hindi || item.hindi}
                                   </p>
-                                  {item.mundari_roman && (
+                                  {(item.task_mundari_roman || item.mundari_roman) && (
                                     <p className="mt-1 font-medium text-amber-800">
-                                      मुंडारी: {item.mundari_roman}
+                                      मुंडारी: {item.task_mundari_roman || item.mundari_roman}
                                     </p>
                                   )}
-                                  <MundariPlayButton text={item.mundari_roman || ""} sourceType="worksheet-preview" verified={item.translation_status === "verified"} compact />
+                                  <MundariPlayButton text={item.task_mundari_roman || item.mundari_roman || ""} sourceType="worksheet-preview" verified={item.translation_status === "verified"} compact />
                                   <div className="mt-2 text-slate-400">उत्तर / रेखांकन: ____________________________________</div>
                                 </div>
                               ))}
@@ -707,18 +707,18 @@ export function ClassroomMaterialsGenerator({
 
                         {section.type === "assessment" && (
                           <div className="space-y-3">
-                            {Array.isArray(section.items) &&
-                              section.items.map((item, idx) => (
+                            {(Array.isArray(section.questions) ? section.questions : Array.isArray(section.items) ? section.items : [])
+                              .map((item, idx) => (
                                 <div key={idx} className="rounded-lg bg-slate-50 p-3 text-xs">
                                   <p className="font-semibold text-slate-900">
-                                    {item.question_no || idx + 1}. {item.hindi}
+                                    {item.question_no || idx + 1}. {item.hindi_question || item.hindi}
                                   </p>
-                                  {item.mundari_roman && (
+                                  {(item.mundari_question || item.mundari_roman) && (
                                     <p className="mt-1 font-medium text-amber-800">
-                                      मुंडारी: {item.mundari_roman}
+                                      मुंडारी: {item.mundari_question || item.mundari_roman}
                                     </p>
                                   )}
-                                  <MundariPlayButton text={item.mundari_roman || ""} sourceType="worksheet-preview" verified={item.translation_status === "verified"} compact />
+                                  <MundariPlayButton text={item.mundari_question || item.mundari_roman || ""} sourceType="worksheet-preview" verified={item.translation_status === "verified"} compact />
                                   {item.expected_answer && (
                                     <p className="mt-1 text-[11px] text-slate-500">
                                       (Expected answer: {item.expected_answer})

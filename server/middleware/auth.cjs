@@ -50,19 +50,13 @@ function requireAuth(request, response, next) {
 function setSessionCookie(response, token) {
   const isProduction = process.env.NODE_ENV === 'production';
   const cookiePolicy = `HttpOnly; SameSite=${isProduction ? 'None' : 'Lax'}${isProduction ? '; Secure' : ''}`;
-  response.setHeader(
-    'Set-Cookie',
-    `${SESSION_COOKIE}=${encodeURIComponent(token)}; Max-Age=604800; Path=/; ${cookiePolicy}`,
-  );
+  response.append('Set-Cookie', `${SESSION_COOKIE}=${encodeURIComponent(token)}; Max-Age=604800; Path=/; ${cookiePolicy}`);
 }
 
 function clearSessionCookie(response) {
   const isProduction = process.env.NODE_ENV === 'production';
   const cookiePolicy = `HttpOnly; SameSite=${isProduction ? 'None' : 'Lax'}${isProduction ? '; Secure' : ''}`;
-  response.setHeader(
-    'Set-Cookie',
-    `${SESSION_COOKIE}=; Max-Age=0; Path=/; ${cookiePolicy}`,
-  );
+  response.append('Set-Cookie', `${SESSION_COOKIE}=; Max-Age=0; Path=/; ${cookiePolicy}`);
 }
 
 function createSessionToken() {

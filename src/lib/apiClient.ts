@@ -33,6 +33,14 @@ export function isLocalBackend(): boolean {
 }
 
 function apiUrl(path: string): string {
+  if (!API_BASE_URL && !import.meta.env.DEV) {
+    throw new Error(CONNECTION_ERROR_MESSAGE);
+  }
+
+  if (!import.meta.env.DEV && /^(https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?$/i.test(API_BASE_URL)) {
+    throw new Error(CONNECTION_ERROR_MESSAGE);
+  }
+
   return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
 }
 
@@ -41,7 +49,22 @@ async function getCsrfToken(): Promise<string> {
   if (!csrfTokenRequest) {
     csrfTokenRequest = (async () => {
       try {
-        const response = await fetch(apiUrl('/api/auth/csrf'), { credentials: 'include' });
+        const requestUrl = apiUrl('/api/auth/csrf');
+        let response: Response;
+        try {
+          response = await fetch(requestUrl, { credentials: 'include' });
+        } catch (error) {
+          if (import.meta.env.DEV) {
+            console.debug('[apiFetch]', {
+              method: 'GET',
+              path: '/api/auth/csrf',
+              apiBaseUrl: API_BASE_URL,
+              requestUrl,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+          throw new Error(describeNetworkFailure(error));
+        }
         const text = await response.text();
 
         let payload: { success?: boolean; csrf_token?: string; message?: string } | null = null;

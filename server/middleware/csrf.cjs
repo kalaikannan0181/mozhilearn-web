@@ -40,10 +40,7 @@ function readCookie(request, name) {
 function setCsrfCookie(response, token) {
   const production = process.env.NODE_ENV === 'production';
   const sameSite = production ? 'None' : 'Lax';
-  response.setHeader(
-    'Set-Cookie',
-    `${COOKIE_NAME}=${encodeURIComponent(token)}; Max-Age=86400; Path=/; HttpOnly; SameSite=${sameSite}${production ? '; Secure' : ''}`,
-  );
+  response.append('Set-Cookie', `${COOKIE_NAME}=${encodeURIComponent(token)}; Max-Age=86400; Path=/; HttpOnly; SameSite=${sameSite}${production ? '; Secure' : ''}`);
 }
 
 function csrfProtection(allowedOrigins) {

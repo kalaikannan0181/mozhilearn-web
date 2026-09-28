@@ -68,11 +68,14 @@ async function getAudioStatus({ language = 'mundari' } = {}) {
       language: normalizedLanguage,
       available: false,
       model: DEFAULT_MODEL_ID,
+      modelId: DEFAULT_MODEL_ID,
       modelAvailable: false,
       weightsPresent: diagnostics.checkpointFound,
       tokenizerFound: diagnostics.tokenizerFound,
       serviceConfigured: false,
-      reason: diagnostics.checkpointFound ? 'tts_service_not_configured' : 'model_missing',
+      reason: diagnostics.checkpointFound ? 'tts_service_not_configured' : 'model_weights_missing',
+      missingCheckpoint: diagnostics.checkpointFound ? undefined : 'model.safetensors',
+      inputScript: 'Odia',
       message: diagnostics.checkpointFound ? 'Mundari TTS service is not configured.' : diagnostics.message,
     };
   }
@@ -133,12 +136,29 @@ async function synthesize({ ttsInput, ttsInputScript, language = 'mundari' } = {
     };
   }
 
+  const cacheKey = crypto.createHash('sha256').update(`${DEFAULT_MODEL_ID}|${ttsInputScript}|${trimmedText}`).digest('hex');
+  const cachedAudioPath = path.join(GENERATED_AUDIO_ROOT, `${cacheKey}.wav`);
+  if (fs.existsSync(cachedAudioPath)) {
+    return {
+      success: true,
+      status: 'success',
+      mode: 'model',
+      available: true,
+      statusCode: 200,
+      audioUrl: `/api/tts/audio/${cacheKey}.wav`,
+      format: 'wav',
+      model: DEFAULT_MODEL_ID,
+      cached: true,
+    };
+  }
+
   if (process.env.TTS_SERVICE_URL) {
     try {
       const response = await fetch(`${process.env.TTS_SERVICE_URL.replace(/\/+$/, '')}/tts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tts_input: trimmedText, tts_input_script: ttsInputScript, language: normalizedLanguage }),
+        signal: AbortSignal.timeout(30000),
       });
       const payload = await response.json();
       if (response.ok && payload.success && typeof payload.audio_base64 === 'string' && payload.format === 'wav') {
@@ -185,7 +205,7 @@ async function synthesize({ ttsInput, ttsInputScript, language = 'mundari' } = {
     language: normalizedLanguage,
     available: false,
     statusCode: 503,
-    reason: modelMissing ? 'model_missing' : 'tts_service_not_configured',
+    reason: modelMissing ? 'model_weights_missing' : 'tts_service_not_configured',
     message: modelMissing ? 'Mundari TTS unavailable: model weights missing.' : 'Mundari TTS service is not configured.',
   };
 }

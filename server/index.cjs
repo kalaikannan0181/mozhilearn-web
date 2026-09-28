@@ -22,6 +22,7 @@ const materialsRoutes = require('./routes/materials.cjs');
 const adminRoutes = require('./routes/admin.cjs');
 const { attachAuth, requireAuth } = require('./middleware/auth.cjs');
 const { csrfProtection } = require('./middleware/csrf.cjs');
+const { addErrorContract } = require('./middleware/errorContract.cjs');
 const { initializeAsr, shutdownAsr } = require('./services/asrService.cjs');
 const { logError } = require('./lib/logger.cjs');
 
@@ -51,6 +52,7 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json({ limit: '1mb' }));
+app.use(addErrorContract);
 app.use(attachAuth);
 app.use(csrfProtection(allowedOrigins));
 

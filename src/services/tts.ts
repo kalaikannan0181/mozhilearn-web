@@ -27,6 +27,8 @@ export type TtsRequest = {
 const DEFAULT_TTS_MODEL = "facebook/mms-tts-unr";
 const audioMap = new Map<string, HTMLAudioElement>();
 let activeAudio: HTMLAudioElement | null = null;
+let cachedStatus: { expiresAt: number; value: TtsStatus } | null = null;
+let statusRequest: Promise<TtsStatus> | null = null;
 
 function isLatinText(text: string): boolean {
   const letters = text.match(/\p{L}/gu) || [];
@@ -39,6 +41,10 @@ function resolveAudioUrl(audioUrl: string): string {
 }
 
 export async function getTTSStatus(language = "mundari"): Promise<TtsStatus> {
+  if (cachedStatus && cachedStatus.expiresAt > Date.now()) return cachedStatus.value;
+  if (statusRequest) return statusRequest;
+
+  statusRequest = (async () => {
   const response = await apiFetch(`/api/tts/status?language=${encodeURIComponent(language)}`);
   const payload = await readApiJson<TtsStatus>(response, "Unable to check Mundari TTS status.");
 
@@ -46,12 +52,21 @@ export async function getTTSStatus(language = "mundari"): Promise<TtsStatus> {
     throw new Error(payload.message || "Unable to check Mundari TTS status.");
   }
 
-  return {
+  const status = {
     ...payload,
     model: payload.model || DEFAULT_TTS_MODEL,
     status: (payload.status || (payload.available ? "ready" : "model_missing")) as TtsStatus["status"],
     available: Boolean(payload.available),
   };
+  cachedStatus = { expiresAt: Date.now() + 15000, value: status };
+  return status;
+  })();
+
+  try {
+    return await statusRequest;
+  } finally {
+    statusRequest = null;
+  }
 }
 
 export async function speakMundari(request: TtsRequest): Promise<{ success: boolean; available: boolean; audioUrl?: string | null; message?: string; reason?: string; status?: TtsStatus["status"] }> {
@@ -124,7 +139,7 @@ export function stopMundari() {
   activeAudio = null;
 }
 
-export function playAudioUrl(audioUrl: string, key: string) {
+export function playAudioUrl(audioUrl: string, key: string, onEnded?: () => void) {
   if (!audioUrl) return Promise.reject(new Error("Audio URL is required."));
 
   const cacheKey = `${DEFAULT_TTS_MODEL}|Odia|${key}`;
@@ -141,6 +156,7 @@ export function playAudioUrl(audioUrl: string, key: string) {
 
   stopMundari();
   activeAudio = cached;
+  cached.onended = onEnded || null;
   cached.currentTime = 0;
   return cached.play();
 }

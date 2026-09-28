@@ -18,6 +18,7 @@ import { BrandMark } from "../components/BrandMark";
 import { StatusBadge } from "../components/StatusBadge";
 import { Class1VoiceDemoCard } from "../components/Class1VoiceDemoCard";
 import { ClassroomMaterialsGenerator } from "../components/ClassroomMaterialsGenerator";
+import { MundariPlayButton } from "../components/MundariPlayButton";
 import { useAuth } from "../features/auth/AuthProvider";
 import { createLesson, fetchLessons, translateHindiToMundari } from "../lib/api";
 import type { CreateLessonInput, Lesson } from "../types/lesson";
@@ -419,7 +420,14 @@ export function DashboardPage() {
                         {isTranslating ? "Generating..." : "Generate Mundari with AI"}
                       </button>
                     )}
-                    {name === "learning_outcome_mundari" && <span className="text-[11px] font-normal text-slate-500">Generated in Roman script</span>}
+                    {name === "learning_outcome_mundari" && (
+                      <span className="flex items-center gap-2">
+                        <span className="text-[11px] font-normal text-slate-500">Generated in Roman script</span>
+                        {lessonForm.learning_outcome_mundari && (
+                          <MundariPlayButton text={lessonForm.learning_outcome_mundari} sourceType="lesson" compact />
+                        )}
+                      </span>
+                    )}
                   </span>
                   <textarea
                     rows={3}

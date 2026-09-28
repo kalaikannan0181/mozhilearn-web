@@ -83,6 +83,51 @@ function parsePositiveInteger(value) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
+router.get('/api/translations', requireRole('teacher', 'reviewer', 'admin'), async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT t.id, t.lesson_id, t.hindi_text, t.mundari_text, t.source, t.status,
+              t.teacher_notes, t.reviewer_notes, t.reviewer_id, t.model_version,
+              t.created_at, t.updated_at
+       FROM translations t
+       LEFT JOIN lessons l ON l.id = t.lesson_id
+       WHERE $1::text <> 'teacher'
+          OR t.created_by = $2
+          OR l.created_by = $2
+       ORDER BY t.updated_at DESC, t.id DESC`,
+      [req.auth.role, req.auth.id],
+    );
+    return res.status(200).json({ success: true, translations: result.rows });
+  } catch (error) {
+    logError('GET /api/translations error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch translations' });
+  }
+});
+
+router.get('/api/translations/:id', requireRole('teacher', 'reviewer', 'admin'), async (req, res) => {
+  const translationId = parsePositiveInteger(req.params.id);
+  if (!translationId) return res.status(400).json({ success: false, message: 'Translation ID must be a positive integer' });
+
+  try {
+    const result = await query(
+      `SELECT t.id, t.lesson_id, t.hindi_text, t.mundari_text, t.source, t.status,
+              t.teacher_notes, t.reviewer_notes, t.reviewer_id, t.model_version,
+              t.created_at, t.updated_at, t.created_by, l.created_by AS lesson_created_by
+       FROM translations t
+       LEFT JOIN lessons l ON l.id = t.lesson_id
+       WHERE t.id = $1
+         AND ($2::text <> 'teacher' OR t.created_by = $3 OR l.created_by = $3)`,
+      [translationId, req.auth.role, req.auth.id],
+    );
+    if (!result.rows[0]) return res.status(404).json({ success: false, message: 'Translation not found' });
+    const { created_by, lesson_created_by, ...translation } = result.rows[0];
+    return res.status(200).json({ success: true, translation });
+  } catch (error) {
+    logError(`GET /api/translations/${translationId} error:`, error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch translation' });
+  }
+});
+
 router.post('/api/translations', requireRole('teacher', 'reviewer', 'admin'), async (req, res) => {
   const {
     lesson_id: lessonId,

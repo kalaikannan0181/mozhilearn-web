@@ -25,9 +25,13 @@ let tempUserId = null;
 let baselineCounts = null;
 const temporaryUsers = new Map();
 
-function getCookieHeader(setCookieHeader) {
+function getCookieHeader(setCookieHeader, cookieName) {
   if (!setCookieHeader) return '';
-  return setCookieHeader.split(';')[0];
+  const cookie = setCookieHeader
+    .split(/,(?=[^;,]+=)/)
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${cookieName}=`));
+  return cookie ? cookie.split(';')[0] : '';
 }
 
 async function waitForHttp(url, timeoutMs = 40000) {
@@ -133,7 +137,7 @@ async function api(pathname, options = {}, cookieHeader = teacherCookie) {
       const payload = await csrfResponse.json();
       assert.equal(csrfResponse.status, 200);
       csrfToken = payload.csrf_token;
-      csrfCookie = getCookieHeader(csrfResponse.headers.get('set-cookie'));
+      csrfCookie = getCookieHeader(csrfResponse.headers.get('set-cookie'), 'mozhi_csrf');
     }
     headers['X-CSRF-Token'] = csrfToken;
   }
@@ -159,7 +163,10 @@ async function registerTeacher() {
   assert.equal(payload.success, true);
   tempUserId = payload.user.id;
   temporaryUsers.set(tempUserId, tempUserEmail);
-  teacherCookie = getCookieHeader(response.headers.get('set-cookie'));
+  const setCookieHeader = response.headers.get('set-cookie') || '';
+  assert.match(setCookieHeader, /mozhi_session=/, 'Registration response must set the session cookie.');
+  assert.ok(csrfCookie.startsWith('mozhi_csrf='), 'CSRF bootstrap cookie must be retained across requests.');
+  teacherCookie = getCookieHeader(setCookieHeader, 'mozhi_session');
   assert.ok(teacherCookie, 'Registration should set a session cookie.');
   return payload;
 }
@@ -173,7 +180,7 @@ async function loginTeacher(email, password) {
   const payload = await response.json();
   assert.equal(response.status, 200, 'Teacher login should succeed.');
   assert.equal(payload.success, true);
-  teacherCookie = getCookieHeader(response.headers.get('set-cookie'));
+  teacherCookie = getCookieHeader(response.headers.get('set-cookie'), 'mozhi_session');
   assert.ok(teacherCookie, 'Login should set a session cookie.');
   return payload;
 }
@@ -190,6 +197,7 @@ async function cleanupTemporaryTeacher() {
   if (temporaryUsers.size === 0 && !tempUserEmail && tempUserId === null) return;
   const pool = new Pool({ connectionString: dbUrl, ssl: false });
   try {
+    await pool.query('BEGIN');
     const entries = new Map(temporaryUsers);
     if (tempUserId !== null && tempUserEmail) entries.set(tempUserId, tempUserEmail);
     for (const [targetUserId, email] of entries) {
@@ -198,8 +206,13 @@ async function cleanupTemporaryTeacher() {
       await pool.query('DELETE FROM translations WHERE created_by = $1', [resolvedId]);
       await pool.query('DELETE FROM audit_logs WHERE user_id = $1', [resolvedId]);
       await pool.query('DELETE FROM sessions WHERE user_id = $1', [resolvedId]);
-      await pool.query('DELETE FROM users WHERE id = $1', [resolvedId]);
+      const removedUser = await pool.query('DELETE FROM users WHERE id = $1 RETURNING id', [resolvedId]);
+      assert.equal(removedUser.rowCount, 1, `Temporary test user ${resolvedId} should be removed.`);
     }
+    await pool.query('COMMIT');
+  } catch (error) {
+    await pool.query('ROLLBACK');
+    throw error;
   } finally {
     await pool.end();
   }
@@ -277,11 +290,34 @@ test('database health and integrity checks', async () => {
 });
 
 test('auth protection and login flow', async () => {
+  const preflight = await fetch(`${apiBase}/api/auth/login`, {
+    method: 'OPTIONS',
+    headers: {
+      Origin: 'http://localhost:8443',
+      'Access-Control-Request-Method': 'POST',
+      'Access-Control-Request-Headers': 'content-type,x-csrf-token',
+    },
+  });
+  assert.equal(preflight.status, 204);
+  assert.equal(preflight.headers.get('access-control-allow-origin'), 'http://localhost:8443');
+  assert.equal(preflight.headers.get('access-control-allow-credentials'), 'true');
+  assert.match(preflight.headers.get('access-control-allow-headers') || '', /content-type/i);
+  assert.match(preflight.headers.get('access-control-allow-headers') || '', /x-csrf-token/i);
+
   const unauthenticated = await api('/api/auth/me');
   assert.equal(unauthenticated.status, 401);
+  const unauthenticatedPayload = await unauthenticated.json();
+  assert.equal(unauthenticatedPayload.code, 'UNAUTHORIZED');
+  assert.equal(unauthenticatedPayload.error, 'Authentication required');
 
   const teacher = await registerTeacher();
   assert.equal(teacher.user.email, tempUserEmail);
+
+  const translations = await api('/api/translations');
+  assert.equal(translations.status, 200);
+  assert.equal((await translations.json()).success, true);
+  const missingTranslation = await api('/api/translations/2147483647');
+  assert.equal(missingTranslation.status, 404);
 
   const sameEmailRegister = await api('/api/auth/register', {
     method: 'POST',
