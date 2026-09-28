@@ -6,6 +6,11 @@ const { createRateLimiter } = require('../middleware/rateLimit.cjs');
 const router = express.Router();
 const speakLimit = createRateLimiter({ windowMs: 60 * 1000, max: 20, message: 'Too many TTS requests. Try again later.' });
 
+router.get('/health', (_req, res) => {
+  const language = (_req.query.language || 'mundari').toString();
+  return res.status(200).json({ success: true, ...getAudioStatus({ language }) });
+});
+
 router.get('/status', (_req, res) => {
   const language = (_req.query.language || 'mundari').toString();
   return res.status(200).json(getAudioStatus({ language }));
@@ -28,12 +33,13 @@ router.get('/audio/*asset', (req, res) => {
   return res.sendFile(requestedPath);
 });
 
-router.post('/speak', speakLimit, async (req, res) => {
+router.post('/tts', speakLimit, async (req, res) => {
   const { tts_input: ttsInput, language, audioUrl, voice } = req.body || {};
 
   if (typeof ttsInput !== 'string' || !ttsInput.trim() || ttsInput.length > 2000 || (language !== undefined && language !== 'mundari')) {
     return res.status(400).json({
       success: false,
+      status: 'unavailable',
       mode: 'unavailable',
       language: 'mundari',
       message: 'Mundari model-compatible tts_input of at most 2000 characters is required.',
@@ -41,7 +47,24 @@ router.post('/speak', speakLimit, async (req, res) => {
   }
 
   const result = await synthesize({ ttsInput, language, audioUrl, voice });
-  return res.status(result.success ? 200 : 200).json(result);
+  return res.status(result.statusCode || (result.success ? 200 : 503)).json(result);
+});
+
+router.post('/speak', speakLimit, async (req, res) => {
+  const { tts_input: ttsInput, language, audioUrl, voice } = req.body || {};
+
+  if (typeof ttsInput !== 'string' || !ttsInput.trim() || ttsInput.length > 2000 || (language !== undefined && language !== 'mundari')) {
+    return res.status(400).json({
+      success: false,
+      status: 'unavailable',
+      mode: 'unavailable',
+      language: 'mundari',
+      message: 'Mundari model-compatible tts_input of at most 2000 characters is required.',
+    });
+  }
+
+  const result = await synthesize({ ttsInput, language, audioUrl, voice });
+  return res.status(result.statusCode || (result.success ? 200 : 503)).json(result);
 });
 
 module.exports = router;
