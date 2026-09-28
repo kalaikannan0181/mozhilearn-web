@@ -62,6 +62,7 @@ app.get('/', (_req, res) => {
     ok: true,
     service: 'mozilearn-api',
     message: 'Backend is running',
+    environment: process.env.NODE_ENV || 'development',
     version: packageMetadata.version,
   });
 });

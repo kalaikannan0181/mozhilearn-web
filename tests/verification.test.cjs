@@ -245,17 +245,28 @@ test('environment and project discovery checks', async () => {
 });
 
 test('database health and integrity checks', async () => {
+  const rootResponse = await fetch(`${apiBase}/`);
+  assert.equal(rootResponse.status, 200);
+  const rootPayload = await rootResponse.json();
+  assert.equal(rootPayload.ok, true);
+    assert.equal(rootPayload.service, 'mozilearn-api');
+  assert.equal(rootPayload.message, 'Backend is running');
+  assert.ok(typeof rootPayload.environment === 'string');
+
   const healthResponse = await fetch(`${apiBase}/api/health`);
   assert.equal(healthResponse.status, 200);
   const healthPayload = await healthResponse.json();
   assert.equal(healthPayload.ok, true);
   assert.equal(healthPayload.service, 'mozilearn-api');
+  assert.equal(healthPayload.status, 'running');
   assert.equal(typeof healthPayload.version, 'string');
 
-  const health = await api('/api/test-db');
+  const health = await fetch(`${apiBase}/api/test-db`);
   assert.equal(health.status, 200);
   const text = await health.text();
   const json = JSON.parse(text);
+  assert.equal(json.ok, true);
+  assert.equal(json.database, 'connected');
   assert.equal(json.success, true);
   assert.ok(json.current_time);
 
