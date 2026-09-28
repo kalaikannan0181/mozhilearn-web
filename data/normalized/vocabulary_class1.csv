@@ -1,0 +1,9 @@
+object_code,english,hindi,mundari_roman,audio_prompt,image_path,source_file,source_sheet,source_row,source_type,source_column,notes,roman_source
+OBJ_02,Mango,आम,Uli,Uli,,Untitled spreadsheet - Sheet1 (3).csv,Vocabulary Flashcard Data,3,vocabulary,source_column,Fruit vocabulary row from the lesson flashcard table.,source-provided
+OBJ_03,Banana,केला,Kela,Kela,,Untitled spreadsheet - Sheet1 (3).csv,Vocabulary Flashcard Data,4,vocabulary,source_column,Fruit vocabulary row from the lesson flashcard table.,source-provided
+OBJ_04,Papaya,पपीता,Papita,Papita,,Untitled spreadsheet - Sheet1 (3).csv,Vocabulary Flashcard Data,5,vocabulary,source_column,Fruit vocabulary row from the lesson source.,source-provided
+OBJ_05,Guava,अमरूद,Tamar,Tamar,,Untitled spreadsheet - Sheet1 (3).csv,Vocabulary Flashcard Data,6,vocabulary,source_column,Fruit vocabulary row from the lesson source.,source-provided
+OBJ_06,Tamarind Seed,इमली का बीज,Jojo jan,Jojo jan,,Untitled spreadsheet - Sheet1 (3).csv,Vocabulary Flashcard Data,7,vocabulary,source_column,Source phrase contains a compound noun with Roman form.,source-provided
+OBJ_07,Water,पानी,Daḥ,,,Untitled spreadsheet - Sheet1 (1).csv,common objects,6,common_object,source_column,Common object word list includes water in Roman form.,source-provided
+OBJ_08,Tree,पेड़,Daru,,,Untitled spreadsheet - Sheet1 (1).csv,common objects,18,common_object,source_column,Tree is part of the classroom item list.,source-provided
+OBJ_09,Hand,हाथ,Ti,,,Untitled spreadsheet - Sheet1 (1).csv,common objects,20,common_object,source_column,Hand is part of the classroom item list.,source-provided

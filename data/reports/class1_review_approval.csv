@@ -1,0 +1,8 @@
+file,status,reason
+lessons_class1.csv,READY_FOR_REVIEW,Verified lesson metadata preserved; no database writes.
+lesson_activities_class1.csv,READY_FOR_REVIEW,Activity prompts reviewed with preserved source provenance.
+lesson_assessments_class1.csv,READY_FOR_REVIEW,Assessment items reviewed; Roman forms kept source-consistent.
+vocabulary_class1.csv,READY_FOR_REVIEW,Core vocabulary baseline preserved without modification.
+classroom_phrases_class1.csv,READY_FOR_REVIEW,Classroom phrases reviewed and preserved as source-provided Roman phrases.
+number_vocabulary_class1.csv,READY_FOR_REVIEW,Number vocabulary matches verified baseline values.
+textbook_terms_class1.csv,READY_FOR_REVIEW,Textbook terms reviewed and retained as source-provided content.

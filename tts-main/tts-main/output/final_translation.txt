@@ -1,0 +1,17 @@
+----------------------------------------
+SIH26042 Hindi → Mundari Translation
+----------------------------------------
+
+Hindi:
+मेरे मा येख हिंदी अद्या पक हैं बे मुझे बखुत प्यार करती हैं और आमेरा अची बवुत शिकाती हैं
+
+Mundari Translation:
+आञ आमा येखे हिन्दी अदा पक्का मेनाः चि आञे पुराएः दुलाड़ा रेकाञ आर आमे अची पुराएः शिकायना
+
+Mundari Roman:
+Unavailable (no verified Roman form in source data)
+
+Status:
+Verified database translation
+
+----------------------------------------

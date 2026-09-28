@@ -1,0 +1,14 @@
+file,sheet_name,rows,columns,likely_purpose,relevant,reason,contains_hindi,contains_mundari,contains_mundari_roman,contains_pronunciation
+Advanced Counting & Ordering.csv,CSV source,7,4,math/numbers,yes,"Direct counting and comparison vocabulary relevant to early numeracy.",yes,no,yes,yes
+Math Curriculum.csv,CSV source,21,6,math/numbers,yes,"Contains number vocabulary and curricular mapping for 1-20 and numeracy outcomes.",yes,no,yes,yes
+Untitled spreadsheet (1).csv,CSV source,8,3,classroom/lesson source,no,"Companion object sheet, but not the core Class 1 fruit/count practice set.",yes,no,yes,no
+Untitled spreadsheet - Sheet1 (1).csv,CSV source,16,4,classroom/lesson source,yes,"Classroom instruction and fruit-counting prompts directly relevant to the lesson sequence.",yes,no,yes,yes
+Untitled spreadsheet - Sheet1 (2).csv,CSV source,26,5,textbook/content source,yes,"Textbook vocabulary and phrases surrounding classroom language and counting.",yes,no,yes,no
+Untitled spreadsheet - Sheet1 (3).csv,CSV source,14,7,classroom/lesson source,yes,"Flashcard vocabulary and teacher script for आम / केला and counting instructions.",yes,no,yes,yes
+Untitled spreadsheet - Sheet1 (4).csv,CSV source,14,8,teacher_script,yes,"Core teacher script for fruit flashcards, counting, and prompt wording.",yes,no,yes,yes
+Untitled spreadsheet - Sheet1.csv,CSV source,20,3,math/numbers,yes,"Number words 1-20 in source-supported Roman form and Hindi text.",yes,no,yes,no
+Vowel Signs & Applied Word Building.csv,CSV source,8,4,vowel and word-building,yes,"Provides applied word building and shows Kela with Roman form.",yes,no,yes,yes
+Word Formulation & Nouns.csv,CSV source,11,4,vocabulary/nouns,yes,"Nouns and classroom objects with Roman transliteration and pronunciation cues.",yes,no,yes,yes
+_Phonics & Sounds unit 1.csv,CSV source,27,4,phonics/sounds,yes,"Basic phonics and sound mapping relevant to early literacy and pronunciation metadata.",yes,yes,yes,yes
+jharkhand_primary_curriculum_hindi_mundari (1).csv,CSV source,30,6,curriculum mapping,yes,"Curriculum overview covering Class 1 language and numeracy themes.",yes,yes,yes,no
+jharkhand_primary_curriculum_hindi_mundari.csv,CSV source,30,6,curriculum mapping,yes,"Primary curriculum mapping file for Hindi and Mundari school content.",yes,yes,yes,no

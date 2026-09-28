@@ -1,0 +1,13 @@
+category,hindi,mundari_roman,source_file,source_sheet,source_row,source_type,source_column,roman_source,notes
+common_objects,बैठ जाओ,Dub me,Untitled spreadsheet - Sheet1 (1).csv,Simple Classroom Instructions,2,classroom_phrase,source_column,source-provided,Instruction from simple classroom directives.
+common_objects,खड़े हो जाओ,Tingu me,Untitled spreadsheet - Sheet1 (1).csv,Simple Classroom Instructions,3,classroom_phrase,source_column,source-provided,Instruction from simple classroom directives.
+common_objects,यहाँ आओ,Nere hiju me,Untitled spreadsheet - Sheet1 (1).csv,Simple Classroom Instructions,4,classroom_phrase,source_column,source-provided,Instruction from simple classroom directives.
+common_objects,वहाँ जाओ,Ente seno me,Untitled spreadsheet - Sheet1 (1).csv,Simple Classroom Instructions,5,classroom_phrase,source_column,source-provided,Instruction from simple classroom directives.
+common_objects,यहाँ देखो,Nere nel me,Untitled spreadsheet - Sheet1 (1).csv,Simple Classroom Instructions,6,classroom_phrase,source_column,source-provided,Instruction from simple classroom directives.
+common_objects,ध्यान से सुनो,Ayum me,Untitled spreadsheet - Sheet1 (1).csv,Simple Classroom Instructions,8,classroom_phrase,source_column,source-provided,Instruction from simple classroom directives.
+common_objects,पढ़ो,Padhau me,Untitled spreadsheet - Sheet1 (1).csv,Simple Classroom Instructions,9,classroom_phrase,source_column,source-provided,Instruction from simple classroom directives.
+common_objects,लिखो,Ol me,Untitled spreadsheet - Sheet1 (1).csv,Simple Classroom Instructions,10,classroom_phrase,source_column,source-provided,Instruction from simple classroom directives.
+common_objects,आम गिनो,Uli leka me,Untitled spreadsheet - Sheet1 (1).csv,Simple Classroom Instructions,12,classroom_phrase,source_column,source-provided,Direct classroom counting phrase.
+teacher_script,मेरी तरफ देखो और आम गिनो।,Aing saen nel pe ar uli leka pe.,Untitled spreadsheet - Sheet1 (3).csv,Teacher Script & Audio Prompts,12,teacher_script,source_column,source-provided,Teacher instruction from the lesson script.
+teacher_script,यहाँ कितने आम हैं?,Nere chimina uli mena?,Untitled spreadsheet - Sheet1 (3).csv,Teacher Script & Audio Prompts,13,teacher_script,source_column,source-provided,Teacher question for fruit count check.
+teacher_script,"मेरे पीछे बोलो: एक, दो, तीन, चार, पाँच।","Aing a tayam te kaji pe: miyad, bariya, apiya, upuna, moreya.",Untitled spreadsheet - Sheet1 (3).csv,Teacher Script & Audio Prompts,14,teacher_script,source_column,source-provided,Sequence prompt for counting 1–5 in Mundari Roman.

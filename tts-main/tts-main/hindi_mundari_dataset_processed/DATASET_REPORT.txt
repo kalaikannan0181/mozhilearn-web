@@ -1,0 +1,22 @@
+Hindi → Mundari Dataset Report
+
+Source file: b8ae463f-95aa-415c-820b-a93fbb0fb5e0.tsv
+Rows in uploaded TSV: 10282
+Empty/incomplete rows removed: 9
+Duplicate rows removed: 5
+Final usable pairs: 10268
+
+Split:
+Train: 8214
+Validation: 1026
+Test: 1028
+
+Columns:
+1. hindi
+2. mundari
+
+Split ratio: approximately 80% / 10% / 10%
+
+Important:
+The ZIP README states that the original corpus contains 17,826 sentence pairs.
+The separately uploaded TSV analyzed here contains 10282 rows, so it appears to be a smaller/different copy or subset of that corpus.
