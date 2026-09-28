@@ -41,10 +41,30 @@ if (isProduction) {
     throw new Error(`Missing or invalid required production environment variables: ${missingEnvironment.join(', ')}`);
   }
 }
-const allowedOrigins = new Set([
-  ...(process.env.CORS_ORIGIN || '').split(',').map((origin) => origin.trim()).filter(Boolean),
+const configuredOrigins = (process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((origin) => origin.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
+
+const defaultOrigins = [
+  'https://mozhilearn-web.vercel.app',
+];
+
+const allowedOriginsSet = new Set([
+  ...defaultOrigins,
+  ...configuredOrigins,
   ...(!isProduction ? ['http://localhost:8443', 'http://127.0.0.1:8443'] : []),
 ]);
+
+const allowedOrigins = {
+  has(origin) {
+    if (!origin) return false;
+    const clean = origin.trim().replace(/\/+$/, '');
+    if (allowedOriginsSet.has(clean)) return true;
+    if (/^https:\/\/mozhilearn-web(-[a-z0-9-]+)?\.vercel\.app$/.test(clean)) return true;
+    return false;
+  },
+};
 
 app.use(cors({
   origin(origin, callback) {
