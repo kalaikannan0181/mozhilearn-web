@@ -249,7 +249,7 @@ test('database health and integrity checks', async () => {
   assert.equal(rootResponse.status, 200);
   const rootPayload = await rootResponse.json();
   assert.equal(rootPayload.ok, true);
-    assert.equal(rootPayload.service, 'mozilearn-api');
+    assert.equal(rootPayload.service, 'MozhiLearn API');
   assert.equal(rootPayload.message, 'Backend is running');
   assert.ok(typeof rootPayload.environment === 'string');
 

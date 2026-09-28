@@ -60,7 +60,7 @@ app.use(csrfProtection(allowedOrigins));
 app.get('/', (_req, res) => {
   res.status(200).json({
     ok: true,
-    service: 'mozilearn-api',
+    service: 'MozhiLearn API',
     message: 'Backend is running',
     environment: process.env.NODE_ENV || 'development',
     version: packageMetadata.version,
