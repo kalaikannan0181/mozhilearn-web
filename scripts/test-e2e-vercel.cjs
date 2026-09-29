@@ -33,7 +33,7 @@ async function runTest() {
   }
 
   console.log('\n=== STEP 2: TEST RENDER BACKEND HEALTH ===');
-  const renderBase = 'https://mozhilearn-web-2.onrender.com';
+  const renderBase = window.location.origin;
   
   const rootRes = await fetch(`${renderBase}/`);
   console.log('GET / status:', rootRes.status);
