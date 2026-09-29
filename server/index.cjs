@@ -26,8 +26,10 @@ const { csrfProtection } = require('./middleware/csrf.cjs');
 const { addErrorContract } = require('./middleware/errorContract.cjs');
 const { initializeAsr, shutdownAsr } = require('./services/asrService.cjs');
 const { logError } = require('./lib/logger.cjs');
+const { runMigration } = require('./migrate.cjs');
 
 const app = express();
+
 if (process.env.NODE_ENV === 'production') app.set('trust proxy', 1);
 const PORT = process.env.PORT || 5000;
 const isProduction = process.env.NODE_ENV === 'production';
@@ -48,6 +50,10 @@ const configuredOrigins = (process.env.CORS_ORIGIN || '')
 
 const defaultOrigins = [
   'https://mozhilearn-web.vercel.app',
+  'https://mozhilearn-mjofrvbcq-kalaikannan.vercel.app',
+  'https://mozilearn-mjofrvbcq-kalaikannan.vercel.app',
+  'https://mozhilearn-web-2.onrender.com',
+  'https://mozilearn-web-2.onrender.com',
 ];
 
 const allowedOriginsSet = new Set([
@@ -61,10 +67,12 @@ const allowedOrigins = {
     if (!origin) return false;
     const clean = origin.trim().replace(/\/+$/, '');
     if (allowedOriginsSet.has(clean)) return true;
-    if (/^https:\/\/mozhilearn-web(-[a-z0-9-]+)?\.vercel\.app$/.test(clean)) return true;
+    if (/^https:\/\/(?:mozhilearn|mozilearn)[a-z0-9-]*\.vercel\.app$/i.test(clean)) return true;
+    if (/^https:\/\/(?:mozhilearn|mozilearn)[a-z0-9-]*\.onrender\.com$/i.test(clean)) return true;
     return false;
   },
 };
+
 
 app.use(cors({
   origin(origin, callback) {
@@ -142,10 +150,17 @@ app.use((err, req, res, next) => {
   });
 });
 
-const server = app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', async () => {
   console.log(`Express server listening on port ${PORT}`);
+  try {
+    await runMigration();
+    console.log('Database migrations verified and up to date.');
+  } catch (err) {
+    logError('Database migration startup error:', err);
+  }
   initializeAsr();
 });
+
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.once(signal, () => {

@@ -50,13 +50,23 @@ function csrfProtection(allowedOrigins) {
 
     const origin = request.get('origin');
     if ((process.env.NODE_ENV === 'production' && !origin) || (origin && !allowedOrigins.has(origin))) {
-      return response.status(403).json({ success: false, message: 'Request origin is not allowed' });
+      return response.status(403).json({
+        success: false,
+        code: 'CORS_ERROR',
+        error: 'Cross-origin request blocked by CORS policy.',
+        message: 'Cross-origin request blocked by CORS policy.',
+      });
     }
 
     const cookieToken = readCookie(request, COOKIE_NAME);
     const headerToken = request.get('x-csrf-token');
     if (!cookieToken || !headerToken || !equal(cookieToken, headerToken) || !validateCsrfToken(headerToken)) {
-      return response.status(403).json({ success: false, message: 'A valid CSRF token is required' });
+      return response.status(403).json({
+        success: false,
+        code: 'INVALID_CSRF_TOKEN',
+        error: 'Invalid CSRF token.',
+        message: 'Invalid CSRF token.',
+      });
     }
 
     return next();

@@ -33,10 +33,13 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 async function requestAuth(path: string, options?: RequestInit) {
   const response = await apiFetch(path, options);
-  const payload = await readApiJson<{ success: boolean; user?: AppUser; message?: string }>(response, "Authentication request failed.");
+  const payload = await readApiJson<{ success: boolean; user?: AppUser; message?: string; error?: string; code?: string }>(
+    response,
+    "Authentication request failed.",
+  );
 
   if (!response.ok || !payload.success) {
-    throw new Error(payload.message || "Authentication request failed.");
+    throw new Error(payload.error || payload.message || "Authentication request failed.");
   }
 
   return payload;

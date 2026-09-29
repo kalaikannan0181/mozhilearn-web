@@ -59,14 +59,7 @@ export function LoginPage() {
       const message =
         caughtError instanceof Error ? caughtError.message : "Something went wrong. Please try again.";
 
-      const normalizedMessage =
-        message === "Invalid login credentials"
-          ? "The email or password is incorrect. Please check and try again."
-          : /failed to fetch|network|unable to connect|VITE_API_URL|backend api|not configured|HTTP 404|HTTP 500/i.test(message)
-            ? "Unable to connect to the server. Please check the server connection."
-            : message;
-
-      setError(normalizedMessage);
+      setError(message);
     } finally {
       setSubmitting(false);
     }

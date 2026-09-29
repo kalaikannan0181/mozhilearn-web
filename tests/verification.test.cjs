@@ -343,6 +343,32 @@ test('auth protection and login flow', async () => {
     }),
   }, teacherCookie);
   assert.equal(sameEmailRegister.status, 409);
+  const sameEmailPayload = await sameEmailRegister.json();
+  assert.equal(sameEmailPayload.code, 'EMAIL_ALREADY_EXISTS');
+  assert.equal(sameEmailPayload.error, 'An account with this email already exists.');
+
+  const invalidPasswordLogin = await api('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: tempUserEmail, password: 'wrong-password-999' }),
+  }, '');
+  assert.equal(invalidPasswordLogin.status, 401);
+  const invalidPasswordPayload = await invalidPasswordLogin.json();
+  assert.equal(invalidPasswordPayload.code, 'INVALID_CREDENTIALS');
+  assert.equal(invalidPasswordPayload.error, 'Invalid email or password.');
+
+  const invalidCsrf = await fetch(`${apiBase}/api/auth/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': 'invalid.csrf.token',
+      Origin: 'http://localhost:8443',
+    },
+    body: JSON.stringify({ email: tempUserEmail, password: 'qa-password-123' }),
+  });
+  assert.equal(invalidCsrf.status, 403);
+  const invalidCsrfPayload = await invalidCsrf.json();
+  assert.equal(invalidCsrfPayload.code, 'INVALID_CSRF_TOKEN');
 
   const me = await api('/api/auth/me');
   const mePayload = await me.json();
@@ -356,6 +382,7 @@ test('auth protection and login flow', async () => {
 
   await loginTeacher(tempUserEmail, 'qa-password-123');
 });
+
 
 test('role authorization and protected route enforcement', async () => {
   const protectedWithoutAuth = await fetch(`${apiBase}/api/lessons?grade=1`);

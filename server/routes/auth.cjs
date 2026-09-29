@@ -37,6 +37,26 @@ async function createSession(userId, response) {
   setSessionCookie(response, token);
 }
 
+function isDbError(error) {
+  if (!error) return false;
+  const code = String(error.code || '');
+  const msg = String(error.message || '').toLowerCase();
+  return (
+    code.startsWith('08') ||
+    code.startsWith('57P') ||
+    code === 'ECONNREFUSED' ||
+    code === 'ENOTFOUND' ||
+    code === 'ETIMEDOUT' ||
+    code === '28P01' ||
+    code === '3D000' ||
+    code === '42P01' ||
+    msg.includes('connection') ||
+    msg.includes('ssl') ||
+    msg.includes('connect') ||
+    msg.includes('timeout')
+  );
+}
+
 router.get('/api/auth/csrf', (_request, response) => {
   const token = createCsrfToken();
   setCsrfCookie(response, token);
@@ -51,7 +71,9 @@ router.post('/api/auth/register', registrationLimit, async (request, response) =
   if (!trimmedName || trimmedName.length > 200 || !normalizedEmail || normalizedEmail.length > 320 || !normalizedEmail.includes('@') || typeof password !== 'string' || password.length < 8 || password.length > 128) {
     return response.status(400).json({
       success: false,
-      message: 'Name, valid email, and a password between 8 and 128 characters are required',
+      code: 'VALIDATION_ERROR',
+      error: 'Name, valid email, and a password between 8 and 128 characters are required.',
+      message: 'Name, valid email, and a password between 8 and 128 characters are required.',
     });
   }
 
@@ -69,11 +91,22 @@ router.post('/api/auth/register', registrationLimit, async (request, response) =
     return response.status(201).json({ success: true, user: publicUser(result.rows[0]) });
   } catch (error) {
     if (error.code === '23505') {
-      return response.status(409).json({ success: false, message: 'An account with this email already exists' });
+      return response.status(409).json({
+        success: false,
+        code: 'EMAIL_ALREADY_EXISTS',
+        error: 'An account with this email already exists.',
+        message: 'An account with this email already exists.',
+      });
     }
 
     logError('POST /api/auth/register error:', error);
-    return response.status(500).json({ success: false, message: 'Failed to create account' });
+    const isDb = isDbError(error);
+    return response.status(isDb ? 503 : 500).json({
+      success: false,
+      code: isDb ? 'DATABASE_UNAVAILABLE' : 'REGISTRATION_ERROR',
+      error: isDb ? 'Backend service is temporarily unavailable.' : 'Server error. Please try again.',
+      message: isDb ? 'Backend service is temporarily unavailable.' : 'Server error. Please try again.',
+    });
   }
 });
 
@@ -82,7 +115,12 @@ router.post('/api/auth/login', loginLimit, async (request, response) => {
   const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
 
   if (!normalizedEmail || typeof password !== 'string' || !password) {
-    return response.status(400).json({ success: false, message: 'Email and password are required' });
+    return response.status(400).json({
+      success: false,
+      code: 'VALIDATION_ERROR',
+      error: 'Email and password are required.',
+      message: 'Email and password are required.',
+    });
   }
 
   try {
@@ -96,7 +134,12 @@ router.post('/api/auth/login', loginLimit, async (request, response) => {
     const validPassword = user ? await bcrypt.compare(password, user.password_hash) : false;
 
     if (!user || !validPassword) {
-      return response.status(401).json({ success: false, message: 'Invalid login credentials' });
+      return response.status(401).json({
+        success: false,
+        code: 'INVALID_CREDENTIALS',
+        error: 'Invalid email or password.',
+        message: 'Invalid email or password.',
+      });
     }
 
     await createSession(user.id, response);
@@ -104,7 +147,13 @@ router.post('/api/auth/login', loginLimit, async (request, response) => {
     return response.status(200).json({ success: true, user: publicUser(user) });
   } catch (error) {
     logError('POST /api/auth/login error:', error);
-    return response.status(500).json({ success: false, message: 'Failed to sign in' });
+    const isDb = isDbError(error);
+    return response.status(isDb ? 503 : 500).json({
+      success: false,
+      code: isDb ? 'DATABASE_UNAVAILABLE' : 'LOGIN_ERROR',
+      error: isDb ? 'Backend service is temporarily unavailable.' : 'Server error. Please try again.',
+      message: isDb ? 'Backend service is temporarily unavailable.' : 'Server error. Please try again.',
+    });
   }
 });
 
@@ -119,7 +168,7 @@ router.post('/api/auth/logout', async (request, response) => {
     }
 
     clearSessionCookie(response);
-    return response.status(200).json({ success: true });
+    return response.status(200).json({ success: true, message: 'Logged out successfully' });
   } catch (error) {
     logError('POST /api/auth/logout error:', error);
     return response.status(500).json({ success: false, message: 'Failed to sign out' });
@@ -128,10 +177,16 @@ router.post('/api/auth/logout', async (request, response) => {
 
 router.get('/api/auth/me', (request, response) => {
   if (!request.auth) {
-    return response.status(401).json({ success: false, message: 'Authentication required' });
+    return response.status(401).json({
+      success: false,
+      code: 'UNAUTHORIZED',
+      error: 'Authentication required',
+      message: 'Authentication required',
+    });
   }
 
   return response.status(200).json({ success: true, user: publicUser(request.auth) });
 });
 
 module.exports = router;
+

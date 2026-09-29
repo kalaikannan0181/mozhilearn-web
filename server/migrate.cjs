@@ -92,9 +92,14 @@ async function runMigration() {
   console.log('Existing application table row counts preserved.');
 }
 
-runMigration()
-  .catch((error) => {
-    console.error('Database migration failed:', error.message);
-    process.exitCode = 1;
-  })
-  .finally(() => pool.end());
+module.exports = { runMigration };
+
+if (require.main === module) {
+  runMigration()
+    .catch((error) => {
+      console.error('Database migration failed:', error.message);
+      process.exitCode = 1;
+    })
+    .finally(() => pool.end());
+}
+
