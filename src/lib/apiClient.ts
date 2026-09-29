@@ -149,8 +149,10 @@ export async function readApiJson<T extends { success?: boolean; code?: string; 
     let safeMessage: string;
     if (status === 409 || code === 'EMAIL_ALREADY_EXISTS') {
       safeMessage = 'An account with this email already exists.';
-    } else if (status === 401 || code === 'INVALID_CREDENTIALS') {
+    } else if (code === 'INVALID_CREDENTIALS' || (status === 401 && (rawError?.toLowerCase().includes('password') || rawError?.toLowerCase().includes('credential')))) {
       safeMessage = 'Invalid email or password.';
+    } else if (code === 'UNAUTHORIZED' || status === 401) {
+      safeMessage = rawError || 'Authentication required.';
     } else if (status === 403 && (code === 'INVALID_CSRF_TOKEN' || rawError?.toLowerCase().includes('csrf'))) {
       safeMessage = 'Security validation failed. Please refresh and try again.';
     } else if (status === 403 && (code === 'CORS_ERROR' || rawError?.toLowerCase().includes('cors'))) {

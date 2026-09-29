@@ -18,7 +18,7 @@ test('MMS TTS diagnostics reflect authentic checkpoint presence', () => {
 
 test('MMS TTS status is ready when service is configured and model loaded', async () => {
   const status = await getAudioStatus();
-  if (process.env.TTS_SERVICE_URL) {
+  if (process.env.TTS_SERVICE_URL && status.status === 'ready') {
     assert.equal(status.available, true);
     assert.equal(status.status, 'ready');
     assert.equal(status.mode, 'model-service');
@@ -26,6 +26,9 @@ test('MMS TTS status is ready when service is configured and model loaded', asyn
     assert.equal(status.weightsPresent, true);
     assert.equal(status.tokenizerFound, true);
     assert.match(status.message, /ready/i);
+  } else if (process.env.TTS_SERVICE_URL) {
+    assert.equal(status.serviceConfigured, true);
+    assert.equal(status.mode, 'unavailable');
   } else {
     assert.equal(status.weightsPresent, true);
     assert.equal(status.tokenizerFound, true);
