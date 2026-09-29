@@ -1,4 +1,5 @@
-const DEFAULT_PROD_API_URL = 'https://mozhilearn-web-2.onrender.com';
+const DEFAULT_PROD_API_URL =
+  'https://mozli-learn.onrender.com';
 const API_BASE_URL = (
   import.meta.env.VITE_API_URL ||
   (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')
