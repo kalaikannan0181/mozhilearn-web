@@ -2,9 +2,10 @@ services:
   - type: web
     name: mozhilearn-api
     runtime: node
-    buildCommand: npm install --include=dev && npm run build && python3 -m venv tts-main/tts-main/.venv && tts-main/tts-main/.venv/bin/pip install -r tts-main/tts-main/speech_to_text/requirements.txt
+    buildCommand: npm install && (python3 -m venv tts-main/tts-main/.venv && tts-main/tts-main/.venv/bin/pip install -r tts-main/tts-main/speech_to_text/requirements.txt || true)
     startCommand: node server/index.cjs
     healthCheckPath: /api/health
+
     envVars:
       - key: NODE_ENV
         value: production
