@@ -83,23 +83,33 @@ async function runMigration() {
     for (const fileName of migrationFiles) {
       migration = fileName;
       const sql = fs.readFileSync(path.join(migrationsDirectory, fileName), 'utf8');
-      const checksum = crypto.createHash('sha256').update(sql).digest('hex');
+      const rawChecksum = crypto.createHash('sha256').update(sql, 'utf8').digest('hex');
+      const canonicalSql = sql.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      const canonicalChecksum = crypto.createHash('sha256').update(canonicalSql, 'utf8').digest('hex');
+      const legacyCrlfChecksum = crypto
+        .createHash('sha256')
+        .update(canonicalSql.replace(/\n/g, '\r\n'), 'utf8')
+        .digest('hex');
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
         const existing = await client.query('SELECT checksum FROM schema_migrations WHERE name = $1', [fileName]);
         if (existing.rows[0]) {
-          if (existing.rows[0].checksum !== checksum) {
+          if (
+            existing.rows[0].checksum !== rawChecksum &&
+            existing.rows[0].checksum !== canonicalChecksum &&
+            existing.rows[0].checksum !== legacyCrlfChecksum
+          ) {
             throw new Error(`Applied migration checksum changed: ${fileName}`);
           }
           await client.query('COMMIT');
           continue;
         }
 
-        await client.query(sql);
+        await client.query(canonicalSql);
         await client.query(
           'INSERT INTO schema_migrations (name, checksum) VALUES ($1, $2)',
-          [fileName, checksum],
+          [fileName, canonicalChecksum],
         );
         await client.query('COMMIT');
         console.log('Database migration applied:', fileName);
