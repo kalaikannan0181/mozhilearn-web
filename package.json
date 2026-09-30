@@ -16,6 +16,7 @@
     "format": "oxfmt",
     "server": "node server/index.cjs",
     "migrate": "node server/migrate.cjs",
+    "auth:reset-password": "node scripts/reset-user-password.cjs",
     "test": "node --test --test-concurrency=1 tests/**/*.test.cjs",
     "dataset:manifest": "node scripts/build-approved-import-manifest.cjs",
     "dataset:dry-run": "node scripts/dry-run-approved-import.cjs",

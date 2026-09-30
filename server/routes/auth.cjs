@@ -1,5 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+const { pool } = require('../db.cjs');
 const { query } = require('../db.cjs');
 const {
   clearSessionCookie,
@@ -14,9 +16,13 @@ const { createRateLimiter } = require('../middleware/rateLimit.cjs');
 
 const router = express.Router();
 const SESSION_DAYS = 7;
+const RESET_TOKEN_MINUTES = 20;
 const isProduction = process.env.NODE_ENV === 'production';
 const registrationLimit = createRateLimiter({ windowMs: 60 * 60 * 1000, max: isProduction ? 5 : 500, message: 'Too many registration attempts. Try again later.' });
 const loginLimit = createRateLimiter({ windowMs: 15 * 60 * 1000, max: isProduction ? 10 : 500, message: 'Too many login attempts. Try again later.' });
+const resetRequestLimit = createRateLimiter({ windowMs: 60 * 60 * 1000, max: isProduction ? 5 : 30, message: 'Too many password reset requests. Try again later.' });
+const resetCompletionLimit = createRateLimiter({ windowMs: 15 * 60 * 1000, max: isProduction ? 10 : 60, message: 'Too many password reset attempts. Try again later.' });
+const PASSWORD_RESET_MESSAGE = 'If an account exists for that email, a password reset link will be sent.';
 
 function publicUser(row) {
   return {
@@ -46,6 +52,55 @@ function safeFailureCode(error) {
 
 function logAuthDiagnostic(event, details) {
   console.info('[auth-diagnostic]', JSON.stringify({ event, ...details }));
+}
+
+function passwordResetConfiguration() {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.PASSWORD_RESET_FROM;
+  const appUrl = process.env.PASSWORD_RESET_URL;
+  if (!apiKey || !from || !appUrl) {
+    const error = new Error('Password reset email is not configured.');
+    error.code = 'RESET_EMAIL_NOT_CONFIGURED';
+    throw error;
+  }
+
+  let resetUrl;
+  try {
+    resetUrl = new URL('/reset-password', appUrl);
+  } catch {
+    const error = new Error('Password reset URL configuration is invalid.');
+    error.code = 'RESET_URL_INVALID';
+    throw error;
+  }
+  if ((isProduction && resetUrl.protocol !== 'https:') || !['https:', 'http:'].includes(resetUrl.protocol)) {
+    const error = new Error('Password reset URL must use HTTPS in production.');
+    error.code = 'RESET_URL_INVALID';
+    throw error;
+  }
+  return { apiKey, from, resetUrl };
+}
+
+async function sendPasswordResetEmail(email, token) {
+  const { apiKey, from, resetUrl } = passwordResetConfiguration();
+  resetUrl.hash = new URLSearchParams({ token }).toString();
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from,
+      to: [email],
+      subject: 'Reset your MozhiLearn password',
+      text: `A password reset was requested for your MozhiLearn account. This link expires in ${RESET_TOKEN_MINUTES} minutes and can only be used once:\n\n${resetUrl.toString()}\n\nIf you did not request this, you can ignore this email.`,
+    }),
+  });
+  if (!response.ok) {
+    const error = new Error('Password reset email delivery failed.');
+    error.code = `RESET_EMAIL_HTTP_${response.status}`;
+    throw error;
+  }
 }
 
 async function createSession(userId, response) {
@@ -82,6 +137,106 @@ router.get('/api/auth/csrf', (_request, response) => {
   const token = createCsrfToken();
   setCsrfCookie(response, token);
   return response.status(200).json({ success: true, csrf_token: token });
+});
+
+router.post('/api/auth/password-reset/request', resetRequestLimit, async (request, response) => {
+  const email = typeof request.body?.email === 'string' ? request.body.email.trim().toLowerCase() : '';
+  if (!email || email.length > 320 || !email.includes('@')) {
+    return response.status(400).json({ success: false, code: 'VALIDATION_ERROR', error: 'Enter a valid email address.' });
+  }
+
+  try {
+    passwordResetConfiguration();
+    const result = await query('SELECT id FROM users WHERE email = $1', [email]);
+    if (result.rows[0]) {
+      const token = crypto.randomBytes(32).toString('hex');
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+      await query(
+        `INSERT INTO password_reset_tokens (token_hash, user_id, expires_at)
+         VALUES ($1, $2, CURRENT_TIMESTAMP + ($3 * INTERVAL '1 minute'))
+         ON CONFLICT (user_id) DO UPDATE
+         SET token_hash = EXCLUDED.token_hash,
+             expires_at = EXCLUDED.expires_at,
+             created_at = CURRENT_TIMESTAMP`,
+        [tokenHash, result.rows[0].id, RESET_TOKEN_MINUTES]
+      );
+
+      try {
+        await sendPasswordResetEmail(email, token);
+      } catch (error) {
+        await query('DELETE FROM password_reset_tokens WHERE token_hash = $1', [tokenHash]).catch(() => {});
+        logError('Password reset email delivery error:', error);
+      }
+    }
+
+    return response.status(200).json({ success: true, message: PASSWORD_RESET_MESSAGE });
+  } catch (error) {
+    logError('POST /api/auth/password-reset/request error:', error);
+    const isDb = isDbError(error);
+    const isConfigurationError = ['RESET_EMAIL_NOT_CONFIGURED', 'RESET_URL_INVALID'].includes(error.code);
+    return response.status(isDb || isConfigurationError ? 503 : 500).json({
+      success: false,
+      code: isDb ? 'DATABASE_UNAVAILABLE' : isConfigurationError ? 'RESET_EMAIL_UNAVAILABLE' : 'RESET_REQUEST_ERROR',
+      error: isDb || isConfigurationError ? 'Password reset is temporarily unavailable.' : 'Server error. Please try again.',
+    });
+  }
+});
+
+router.post('/api/auth/password-reset/complete', resetCompletionLimit, async (request, response) => {
+  const { token, password } = request.body || {};
+  if (typeof token !== 'string' || !/^[a-f0-9]{64}$/.test(token) || typeof password !== 'string' || password.length < 8 || password.length > 128) {
+    return response.status(400).json({
+      success: false,
+      code: 'VALIDATION_ERROR',
+      error: 'A valid reset link and a password between 8 and 128 characters are required.',
+    });
+  }
+
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  const client = await pool.connect().catch((error) => {
+    logError('POST /api/auth/password-reset/complete connection error:', error);
+    return null;
+  });
+  if (!client) {
+    return response.status(503).json({ success: false, code: 'DATABASE_UNAVAILABLE', error: 'Password reset is temporarily unavailable.' });
+  }
+
+  try {
+    await client.query('BEGIN');
+    const reset = await client.query(
+      `SELECT user_id FROM password_reset_tokens
+       WHERE token_hash = $1 AND expires_at > CURRENT_TIMESTAMP
+       FOR UPDATE`,
+      [tokenHash]
+    );
+    if (!reset.rows[0]) {
+      await client.query('ROLLBACK');
+      return response.status(400).json({ success: false, code: 'INVALID_OR_EXPIRED_RESET_TOKEN', error: 'This reset link is invalid or expired. Request a new one.' });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    await client.query(
+      'UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [passwordHash, reset.rows[0].user_id]
+    );
+    await client.query('DELETE FROM password_reset_tokens WHERE token_hash = $1', [tokenHash]);
+    await client.query('DELETE FROM sessions WHERE user_id = $1', [reset.rows[0].user_id]);
+    await client.query('COMMIT');
+
+    await audit({ userId: reset.rows[0].user_id, action: 'password_reset', entityType: 'user', entityId: reset.rows[0].user_id });
+    return response.status(200).json({ success: true, message: 'Password updated. Sign in with your new password.' });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    logError('POST /api/auth/password-reset/complete error:', error);
+    const isDb = isDbError(error);
+    return response.status(isDb ? 503 : 500).json({
+      success: false,
+      code: isDb ? 'DATABASE_UNAVAILABLE' : 'RESET_COMPLETION_ERROR',
+      error: isDb ? 'Password reset is temporarily unavailable.' : 'Server error. Please try again.',
+    });
+  } finally {
+    client.release();
+  }
 });
 
 router.post('/api/auth/register', registrationLimit, async (request, response) => {

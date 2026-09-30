@@ -25,7 +25,9 @@ Create a local environment file from the example and fill in any real deployment
 copy .env.example .env.local
 ```
 
-Required values are kept in environment variables only. Do not commit real credentials or private keys. In production, set `DATABASE_URL`, `DATABASE_SSL`, `SESSION_SECRET`, `CORS_ORIGIN`, and any AI/TTS settings in the deployment environment, never in source files.
+Required values are kept in environment variables only. Do not commit real credentials or private keys. In production, set `DATABASE_URL`, `DATABASE_SSL`, `SESSION_SECRET`, `CORS_ORIGIN`, and any AI/TTS settings in the deployment environment, never in source files. To enable email password resets, configure `RESEND_API_KEY`, `PASSWORD_RESET_FROM` with a verified sender, and `PASSWORD_RESET_URL` with the HTTPS frontend origin.
+
+For a controlled single-account recovery, run `npm run auth:reset-password -- user@example.com` in an interactive terminal connected to the intended database. Type the exact email to confirm the target, then enter and confirm the new password at the hidden prompts. The command hashes the password with bcryptjs and revokes the account's existing sessions. Never pass the password as a command-line argument.
 
 ## Production Deployment
 

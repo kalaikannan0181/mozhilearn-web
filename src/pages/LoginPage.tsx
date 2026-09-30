@@ -1,6 +1,6 @@
 import { AlertCircle, ArrowRight, CheckCircle2, Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router";
+import { Link, Navigate, useLocation, useNavigate } from "react-router";
 import { BrandMark } from "../components/BrandMark";
 import { useAuth } from "../features/auth/AuthProvider";
 import { getApiBaseUrl } from "../lib/apiClient";
@@ -225,6 +225,14 @@ export function LoginPage() {
                 </button>
               </div>
             </label>
+
+            {mode === "login" && (
+              <div className="-mt-2 text-right">
+                <Link to="/reset-password" className="text-sm font-semibold text-forest-700 hover:text-forest-900">
+                  Forgot password?
+                </Link>
+              </div>
+            )}
 
             <button
               type="submit"

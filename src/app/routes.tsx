@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate } from "react-router";
 import { ProtectedRoute } from "../features/auth/ProtectedRoute";
 import { DashboardPage } from "../pages/DashboardPage";
 import { LoginPage } from "../pages/LoginPage";
+import { PasswordResetPage } from "../pages/PasswordResetPage";
 import { LessonDetailPage } from "../pages/LessonDetailPage";
 import { LessonsPage } from "../pages/LessonsPage";
 import { NotFoundPage } from "../pages/NotFoundPage";
@@ -18,6 +19,10 @@ export const router = createBrowserRouter([
   {
     path: "/login",
     Component: LoginPage,
+  },
+  {
+    path: "/reset-password",
+    Component: PasswordResetPage,
   },
   {
     element: <ProtectedRoute />,
