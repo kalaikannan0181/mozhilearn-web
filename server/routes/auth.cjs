@@ -27,6 +27,27 @@ function publicUser(row) {
   };
 }
 
+function maskEmail(email) {
+  const [localPart, domain] = email.split('@');
+  return domain ? `${localPart.slice(0, 1)}***@${domain}` : 'invalid';
+}
+
+function hashFormat(hash) {
+  if (typeof hash !== 'string' || !hash) return 'missing';
+  if (/^\$2[aby]\$\d{2}\$/.test(hash)) return 'bcrypt';
+  if (/^\$argon2(?:id|i|d)\$/.test(hash)) return 'argon2';
+  return 'other';
+}
+
+function safeFailureCode(error) {
+  const code = typeof error?.code === 'string' ? error.code : error?.name;
+  return typeof code === 'string' && /^[A-Z0-9_]{1,32}$/.test(code) ? code : 'INTERNAL_ERROR';
+}
+
+function logAuthDiagnostic(event, details) {
+  console.info('[auth-diagnostic]', JSON.stringify({ event, ...details }));
+}
+
 async function createSession(userId, response) {
   const token = createSessionToken();
   await query(
@@ -123,6 +144,10 @@ router.post('/api/auth/login', loginLimit, async (request, response) => {
     });
   }
 
+  const maskedEmail = maskEmail(normalizedEmail);
+  let stage = 'user_lookup';
+  logAuthDiagnostic('login_attempt', { email: maskedEmail });
+
   try {
     const result = await query(
       `SELECT id, email, full_name, role, password_hash
@@ -131,9 +156,22 @@ router.post('/api/auth/login', loginLimit, async (request, response) => {
       [normalizedEmail]
     );
     const user = result.rows[0];
+    logAuthDiagnostic('login_user_lookup', {
+      email: maskedEmail,
+      userFound: Boolean(user),
+      hashFormat: hashFormat(user?.password_hash),
+    });
+
+    stage = 'password_comparison';
     const validPassword = user ? await bcrypt.compare(password, user.password_hash) : false;
+    logAuthDiagnostic('login_password_comparison', { email: maskedEmail, passwordMatch: validPassword });
 
     if (!user || !validPassword) {
+      logAuthDiagnostic('login_rejected', {
+        email: maskedEmail,
+        failureStage: user ? 'password_comparison' : 'user_lookup',
+        failureCode: user ? 'PASSWORD_MISMATCH' : 'USER_NOT_FOUND',
+      });
       return response.status(401).json({
         success: false,
         code: 'INVALID_CREDENTIALS',
@@ -142,10 +180,20 @@ router.post('/api/auth/login', loginLimit, async (request, response) => {
       });
     }
 
+    stage = 'session_creation';
     await createSession(user.id, response);
+    logAuthDiagnostic('login_session_created', { email: maskedEmail });
+
+    stage = 'audit_write';
     await audit({ userId: user.id, action: 'login', entityType: 'user', entityId: user.id });
+    logAuthDiagnostic('login_success', { email: maskedEmail });
     return response.status(200).json({ success: true, user: publicUser(user) });
   } catch (error) {
+    logAuthDiagnostic('login_error', {
+      email: maskedEmail,
+      failureStage: stage,
+      failureCode: safeFailureCode(error),
+    });
     logError('POST /api/auth/login error:', error);
     const isDb = isDbError(error);
     return response.status(isDb ? 503 : 500).json({
